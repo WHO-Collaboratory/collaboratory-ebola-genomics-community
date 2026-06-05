@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BDBV Genomics Community Dashboard</title>
+  <!-- PearTree styles — paths match actual repo structure, not the docs example -->
+  <link rel="stylesheet" href="pearcore/vendor/bootstrap.min-artic.css" />
+  <link rel="stylesheet" href="pearcore/vendor/bootstrap-icons/bootstrap-icons.css" />
+  <link rel="stylesheet" href="pearcore/css/pearcore.css" />
+  <link rel="stylesheet" href="peartree/css/peartree.css" />
+  <link rel="stylesheet" href="peartree/css/peartree-embed.css" />
+  <!-- Import map so peartree.js can resolve @artic-network/pearcore/ imports -->
+  <script type="importmap">
+    { "imports": { "@artic-network/pearcore/": "./pearcore/js/" } }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f6f8;
+      color: #222;
+    }
+
+    header {
+      background: #ffffff;
+      border-bottom: 4px solid #009EDB;
+      padding: 0;
+    }
+    .header-top {
+      background: #00558B;
+      padding: 6px 32px;
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.85);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .header-top a { color: rgba(255,255,255,0.85); text-decoration: none; }
+    .header-top a:hover { color: white; text-decoration: underline; }
+    .header-body {
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    header img { height: 52px; }
+    .header-divider {
+      width: 1px;
+      height: 44px;
+      background: #dde3ea;
+    }
+    .header-text h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #00558B;
+      line-height: 1.3;
+    }
+    .header-text p {
+      font-size: 0.82rem;
+      color: #555;
+      margin-top: 3px;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #009EDB;
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+      margin-left: 8px;
+      vertical-align: middle;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 24px 48px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: white !important;
+      border-radius: 8px !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1) !important;
+      overflow: hidden;
+      border: none !important;
+    }
+
+    .card-header {
+      padding: 14px 18px !important;
+      border-bottom: 1px solid #eee !important;
+      border-radius: 0 !important;
+      background: white !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+    }
+    .card-header h2 { font-size: 0.95rem !important; font-weight: 600 !important; color: #222 !important; margin: 0 !important; }
+    .card-header a {
+      font-size: 0.8rem !important;
+      color: #009EDB !important;
+      text-decoration: none !important;
+    }
+    .card-header a:hover { text-decoration: underline !important; }
+
+    .card-body { padding: 16px 18px !important; }
+
+    iframe {
+      width: 100%;
+      border: none;
+      display: block;
+    }
+
+    /* Sequences table */
+    #seq-status {
+      font-size: 0.85rem;
+      color: #666;
+      margin-bottom: 12px;
+    }
+    #seq-count {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #005a8e;
+    }
+    #seq-count-label { font-size: 0.8rem; color: #666; margin-bottom: 16px; }
+
+    /* Scope table styles under #seq-table-container to beat Bootstrap specificity */
+    #seq-table-container table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      font-size: 0.82rem !important;
+      background: white !important;
+      color: #222 !important;
+      margin: 0 !important;
+    }
+    #seq-table-container th {
+      background: #f0f4f8 !important;
+      text-align: left !important;
+      padding: 7px 10px !important;
+      font-weight: 600 !important;
+      color: #444 !important;
+      border-bottom: 2px solid #dde3ea !important;
+      border-top: none !important;
+      vertical-align: middle !important;
+    }
+    #seq-table-container td {
+      padding: 7px 10px !important;
+      border-bottom: 1px solid #eee !important;
+      border-top: none !important;
+      vertical-align: middle !important;
+    }
+    #seq-table-container tr:last-child td { border-bottom: none !important; }
+    #seq-table-container tr:hover td { background: #f8fafc !important; }
+    #seq-table-container a { color: #005a8e !important; }
+
+    .tag {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .tag-restricted { background: #fff3cd; color: #856404; }
+    .tag-drc { background: #d4edda; color: #155724; }
+    .tag-uganda { background: #cce5ff; color: #004085; }
+    .tag-germany { background: #e2d9f3; color: #4a235a; }
+
+    .fallback-box {
+      background: #f0f4f8;
+      border-radius: 6px;
+      padding: 16px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: #555;
+    }
+    .fallback-box a { color: #005a8e; }
+
+    .full-width { grid-column: 1 / -1; }
+
+    .meta-row {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 0.82rem;
+      color: #555;
+      margin-top: 12px;
+    }
+    .meta-row span strong { color: #222; }
+
+    footer {
+      text-align: center;
+      font-size: 0.78rem;
+      color: #999;
+      margin-top: 32px;
+    }
+    footer a { color: #005a8e; text-decoration: none; }
+</style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <a href="https://www.who.int/initiatives/international-pathogen-surveillance-network" target="_blank">WHO · International Pathogen Surveillance Network (IPSN)</a>
+    · Community of Practice on Specialized Surveillance for Emergency Response
+  </div>
+  <div class="header-body">
+    <img src="img/ipsn.png" alt="IPSN logo" onerror="this.style.display='none'" />
+    <div class="header-divider"></div>
+    <div class="header-text">
+      <h1>BDBV Genomics Community Dashboard <span class="badge">Live</span></h1>
+      <p>2026 Bundibugyo Virus Disease Outbreak · DRC &amp; Uganda</p>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Main grid: Pathoplexus left, charts + tree right -->
+  <div class="grid" style="margin-bottom:20px; align-items:start;">
+
+    <!-- Left: Pathoplexus sequence table -->
+    <div class="card">
+      <div class="card-header">
+        <h2>🗄️ Sequences in Pathoplexus</h2>
+        <a href="https://pathoplexus.org/seq/search?organism=ebola-bundibugyo" target="_blank">View on Pathoplexus ↗</a>
+      </div>
+      <div class="card-body">
+        <div id="seq-status">Loading sequence data…</div>
+        <div id="seq-table-container"></div>
+      </div>
+    </div>
+
+    <!-- Right: charts + PearTree stacked -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <div class="card">
+        <div class="card-header">
+          <h2>📈 Genomes over time</h2>
+        </div>
+        <div class="card-body">
+          <canvas id="genomesChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>🌳 2026 Outbreak Phylogeny</h2>
+          <span id="peartree-status" style="font-size:0.8rem;color:#666;">Loading tree from Nextstrain…</span>
+        </div>
+        <div id="bdbv-tree-2026" style="height:560px;"></div>
+      </div>
+
+    </div>
+
+  </div>
+
+</main>
+
+<footer>
+  <p>Data shared under <a href="https://pathoplexus.org/about/terms-of-use/data-use-terms" target="_blank">Pathoplexus Restricted Use terms</a> ·
+  Sequences from INRB (DRC), CPHL (Uganda), Charité Berlin ·
+  Dashboard maintained by <a href="https://www.who.int/initiatives/international-pathogen-surveillance-network" target="_blank">IPSN</a> ·
+  <a href="https://github.com/WHO-Collaboratory/collaboratory-ebola-genomics-community">Community repo</a> ·
+  <a href="https://github.com/WHO-Collaboratory/collaboratory-ebola-genomics-community/blob/main/landscape.md">Landscape analysis</a></p>
+</footer>
+
+<script>
+  // Known sequences from the 2026 outbreak (from Virological post 2026-05-28)
+  // This is used as a fallback if the Pathoplexus API is unavailable.
+  const knownSequences = [
+    { id: "PP_006Y8NC", sample: "26FHV061", date: "2026-05-06", country: "DRC",     location: "Bunia" },
+    { id: "PP_006Y8PA", sample: "26FHV062", date: "2026-05-06", country: "DRC",     location: "Bunia" },
+    { id: "PP_006Y8Q8", sample: "26FHV063", date: "2026-05-06", country: "DRC",     location: "Bunia" },
+    { id: "PP_006Y8ME", sample: "26FHV058", date: "2026-05-06", country: "DRC",     location: "Katwa" },
+    { id: "PP_006Y8R6", sample: "26FHV064", date: "2026-05-16", country: "DRC",     location: "Bunia" },
+    { id: "PP_006Y8S4", sample: "26FHV065", date: "2026-05-16", country: "DRC",     location: "Bunia" },
+    { id: "PP_006XCJJ", sample: "n/a",      date: "2026-05-14", country: "Uganda",  location: "ex-Bunia" },
+    { id: "PP_006XHKB", sample: "26FHV045", date: "2026-05-03", country: "DRC",     location: "Bunia" },
+    { id: "PP_006XHL9", sample: "26FHV054", date: "2026-05-07", country: "DRC",     location: "Bunia" },
+    { id: "PP_006XXY5", sample: "n/a",      date: "2026-05-20", country: "Germany", location: "ex-DRC/ex-Bunia" },
+    { id: "PP_00711R7", sample: "26FHV046", date: "2026-05-03", country: "DRC",     location: "Hoho" },
+    { id: "PP_00711S5", sample: "26FHV047", date: "2026-05-03", country: "DRC",     location: "Hoho" },
+    { id: "PP_00711T3", sample: "26FHV051", date: "2026-05-03", country: "DRC",     location: "Lumumba" },
+    { id: "PP_00711U1", sample: "26FHV053", date: "2026-05-03", country: "DRC",     location: "Hoho" },
+    { id: "PP_00711VZ", sample: "26FHV056", date: "2026-05-03", country: "DRC",     location: "Hoho" },
+  ];
+
+  const countryTag = {
+    "Democratic Republic of the Congo": '<span class="tag tag-drc">DRC</span>',
+    "DRC":     '<span class="tag tag-drc">DRC</span>',
+    "Uganda":  '<span class="tag tag-uganda">Uganda</span>',
+    "Germany": '<span class="tag tag-germany">Germany / Charité</span>',
+  };
+
+  function renderTable(sequences, source) {
+    const status = document.getElementById("seq-status");
+    const container = document.getElementById("seq-table-container");
+
+    status.innerHTML = `
+      <div id="seq-count">${sequences.length}</div>
+      <div id="seq-count-label">genomes deposited · all under <span class="tag tag-restricted">Restricted Use</span></div>
+      <div style="font-size:0.75rem;color:#999;margin-bottom:8px;">${source}</div>
+    `;
+
+    const termsTag = t => t === "RESTRICTED"
+      ? '<span class="tag tag-restricted">Restricted</span>'
+      : t === "OPEN"
+      ? '<span class="tag tag-drc" style="background:#d4edda;color:#155724;">Open</span>'
+      : t;
+
+    const rows = sequences.map(s => `
+      <tr>
+        <td><a href="https://pathoplexus.org/seq/${s.id}" target="_blank">${s.id}</a></td>
+        <td>${s.sample}</td>
+        <td>${s.date}</td>
+        <td>${countryTag[s.country] || s.country}</td>
+        <td>${s.location}</td>
+        <td>${s.lab}</td>
+        <td>${s.released}</td>
+        <td>${termsTag(s.terms || "—")}</td>
+      </tr>
+    `).join("");
+
+    container.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Accession</th><th>Sample ID</th><th>Collection date</th><th>Country</th><th>Location</th><th>Submitting group</th><th>Released ↓</th><th>Data use</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  const LAPIS = "https://lapis.pathoplexus.org/ebola-bdbv";
+
+  // Chart state
+  let genomesChart = null;
+  let allSequences = [];
+
+  function buildTimeSeries(seqs, field) {
+    const counts = {};
+    let missing = 0;
+    seqs.forEach(s => {
+      const d = s[field];
+      if (d && d !== "—") counts[d] = (counts[d] || 0) + 1;
+      else missing++;
+    });
+    const dates = Object.keys(counts).sort();
+    if (dates.length === 0) return { labels: [], daily: [], cumulative: [], missing };
+    const included = seqs.length - missing;
+
+    // Fill every calendar day between min and max
+    const labels = [], daily = [], cumulative = [];
+    let running = 0;
+    const cur = new Date(dates[0] + "T00:00:00");
+    const end = new Date(dates[dates.length - 1] + "T00:00:00");
+    while (cur <= end) {
+      const iso = cur.toISOString().slice(0, 10);
+      const n = counts[iso] || 0;
+      running += n;
+      labels.push(cur.toLocaleDateString("en-GB", { day: "numeric", month: "short" }));
+      daily.push(n);
+      cumulative.push(running);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return { labels, daily, cumulative, missing, included };
+  }
+
+  function renderCharts() {
+    // Build both series — union of all dates across both fields
+    const col = buildTimeSeries(allSequences, "date");
+    const rel = buildTimeSeries(allSequences, "released");
+
+    // Merge labels: take the wider date range of the two
+    const allDates = new Set([
+      ...(allSequences.map(s => s.date).filter(d => d && d !== "—")),
+      ...(allSequences.map(s => s.released).filter(d => d && d !== "—")),
+    ]);
+    const sortedDates = Array.from(allDates).sort();
+    if (!sortedDates.length) return;
+
+    const minDate = new Date(sortedDates[0] + "T00:00:00");
+    const maxDate = new Date(sortedDates[sortedDates.length - 1] + "T00:00:00");
+
+    // Build a unified label array spanning both ranges
+    const labels = [], colData = [], relData = [];
+    const colCounts = {}, relCounts = {};
+    allSequences.forEach(s => {
+      if (s.date     && s.date     !== "—") colCounts[s.date]     = (colCounts[s.date]     || 0) + 1;
+      if (s.released && s.released !== "—") relCounts[s.released] = (relCounts[s.released] || 0) + 1;
+    });
+
+    let colRunning = 0, relRunning = 0;
+    const cur = new Date(minDate);
+    while (cur <= maxDate) {
+      const iso = cur.toISOString().slice(0, 10);
+      colRunning += colCounts[iso] || 0;
+      relRunning += relCounts[iso] || 0;
+      labels.push(cur.toLocaleDateString("en-GB", { day: "numeric", month: "short" }));
+      colData.push(colRunning);
+      relData.push(relRunning);
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const colNote = col.missing > 0 ? ` (${col.included}/${allSequences.length} dated)` : "";
+    const relNote = rel.missing > 0 ? ` (${rel.included}/${allSequences.length} dated)` : "";
+
+    if (genomesChart) genomesChart.destroy();
+    genomesChart = new Chart(document.getElementById("genomesChart").getContext("2d"), {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "By collection date" + colNote,
+            data: colData,
+            borderColor: "#005a8e",
+            backgroundColor: "rgba(0,90,142,0.08)",
+            borderWidth: 2.5,
+            pointRadius: colData.map((v, i) => (colCounts[labels[i]] || 0) > 0 ? 5 : 2),
+            pointBackgroundColor: colData.map((v, i) => (colCounts[labels[i]] || 0) > 0 ? "#005a8e" : "#ccc"),
+            fill: true,
+            tension: 0.3,
+          },
+          {
+            label: "By upload date" + relNote,
+            data: relData,
+            borderColor: "#2a9d8f",
+            backgroundColor: "rgba(42,157,143,0.08)",
+            borderWidth: 2.5,
+            pointRadius: relData.map((v, i) => (relCounts[labels[i]] || 0) > 0 ? 5 : 2),
+            pointBackgroundColor: relData.map((v, i) => (relCounts[labels[i]] || 0) > 0 ? "#2a9d8f" : "#ccc"),
+            fill: true,
+            tension: 0.3,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: true, position: "top", labels: { font: { size: 11 }, boxWidth: 14 } },
+          tooltip: { callbacks: { label: c => `${c.dataset.label.split("(")[0].trim()}: ${c.raw}` } }
+        },
+        scales: {
+          x: {
+            ticks: { font: { size: 11 }, maxRotation: 45, autoSkip: false },
+            grid: { color: "rgba(0,0,0,0.05)" }
+          },
+          y: {
+            title: { display: true, text: "Cumulative genomes", font: { size: 11 } },
+            ticks: { stepSize: 1, precision: 0 },
+            beginAtZero: true,
+            grid: { color: "rgba(0,0,0,0.06)" }
+          }
+        }
+      }
+    });
+  }
+
+  async function loadSequences() {
+    // Try LAPIS API — filter to 2026 outbreak only, public/no auth required
+    try {
+      const resp = await fetch(
+        `${LAPIS}/sample/details?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION&limit=500&dataFormat=JSON`,
+        { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) }
+      );
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const seqs = (data.data || []).map(s => ({
+        id:       s.accession                  || "—",
+        sample:   s.specimenCollectorSampleId  || "n/a",
+        date:     s.sampleCollectionDate       || "—",
+        country:  s.geoLocCountry              || "—",
+        location: s.geoLocAdmin1 || s.geoLocCity || "—",
+        lab:      s.sequencedByOrganization || s.groupName || "—",
+        terms:    s.dataUseTerms               || "—",
+        released: s.releasedDate               || "—",
+      })).sort((a, b) => b.released.localeCompare(a.released));
+      if (seqs.length > 0) {
+        allSequences = seqs;
+        renderTable(seqs, `Live data from <a href="${LAPIS}/swagger-ui/index.html" target="_blank">LAPIS / Pathoplexus</a>`);
+        try { renderCharts(); } catch(e) { console.warn("Chart error:", e); }
+        return;
+      }
+    } catch (err) {
+      console.warn("LAPIS API unavailable:", err.message);
+    }
+
+    // Fallback: hardcoded sequences from Virological post (2026-05-28)
+    allSequences = knownSequences;
+    renderTable(knownSequences, "Static data from Virological post (2026-05-28) — LAPIS API unavailable");
+    try { renderCharts(); } catch(e) { console.warn("Chart error:", e); }
+  }
+
+  loadSequences();
+
+  // ── PearTree: 2026 outbreak tree from Nextstrain ──────────────────────────
+
+  function prune2026withOutgroup(node) {
+    // Collect all non-2026 tips, pick one as outgroup
+    const nonTips = [];
+    function collectNon(n) {
+      if (!n.children) {
+        if (String(n.node_attrs?.year?.value) !== "2026") nonTips.push(n);
+      } else {
+        n.children.forEach(c => collectNon(c));
+      }
+    }
+    collectNon(node);
+
+    // Prefer a 2007 tip (closest historical outbreak); fallback to lowest div
+    let outgroup = nonTips.find(t => String(t.node_attrs?.year?.value) === "2007");
+    if (!outgroup) outgroup = nonTips.sort((a, b) => (a.node_attrs?.div || 0) - (b.node_attrs?.div || 0))[0];
+
+    // Prune: keep 2026 tips + the chosen outgroup
+    function pruneKeep(n) {
+      if (!n.children) {
+        const is2026    = String(n.node_attrs?.year?.value) === "2026";
+        const isOutgroup = n === outgroup;
+        return (is2026 || isOutgroup) ? n : null;
+      }
+      const kept = n.children.map(pruneKeep).filter(Boolean);
+      return kept.length ? { ...n, children: kept } : null;
+    }
+
+    return pruneKeep(node);
+  }
+
+  function toNewick(node, parentDiv) {
+    const div = node.node_attrs?.div ?? parentDiv;
+    const branchLen = Math.max(0, div - parentDiv).toFixed(8);
+    const na = node.node_attrs || {};
+    if (!node.children) {
+      const rawLoc    = na.division?.value || na.country?.value || '';
+      const location  = rawLoc.replace(/Democratic Republic of the Congo/gi, 'DRC').replace(/Democratic Republic of Congo/gi, 'DRC');
+      const date      = na.date?.value || '';
+      const country   = (na.country?.value  || '').replace(/"/g, '');
+      const division  = (na.division?.value || '').replace(/"/g, '');
+      // Compact label: Location · MM-DD (accession visible on hover in PearTree)
+      const shortDate = date.length >= 7 ? date.slice(5) : date; // MM-DD or YYYY-MM-DD for outgroup
+      const parts = [location, shortDate].filter(Boolean);
+      const label = parts.join(' · ').replace(/'/g, "''");
+      return `'${label}'[&date="${date}",country="${country}",division="${division}"]:${branchLen}`;
+    }
+    const children = node.children.map(c => toNewick(c, div)).join(',');
+    return `(${children}):${branchLen}`;
+  }
+
+  // Store nexus globally so the module script can read it
+  window._bdbvNexus = null;
+  window._bdbvMeta  = null;
+
+  async function fetchTree() {
+    try {
+      const resp = await fetch(
+        'https://nextstrain.org/charon/getDataset?prefix=ebola/bdbv',
+        { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(12000) }
+      );
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const pruned = prune2026withOutgroup(data.tree);
+      if (!pruned) throw new Error('No 2026 genomes');
+      const nexus = `#NEXUS\nBEGIN TREES;\nTREE outbreak_2026 = [&R] ${toNewick(pruned, pruned.node_attrs?.div ?? 0)};\nEND;\n`;
+      window._bdbvNexus = nexus;
+      window._bdbvMeta  = data.meta;
+      const tipCount2026 = (nexus.match(/year="2026"/g) || []).length || ((nexus.match(/\[&date=/g) || []).length - 1);
+      document.getElementById('peartree-status').textContent =
+        `${tipCount2026} outbreak genomes + 1 outgroup · live from Nextstrain (updated ${data.meta?.updated || 'recently'})`;
+    } catch (err) {
+      document.getElementById('peartree-status').textContent = `Could not load tree: ${err.message}`;
+      console.warn('Tree fetch error:', err);
+    }
+  }
+
+  fetchTree();
+
+</script>
+
+<script type="module">
+  // Import PearTree directly — bypasses the shim entirely
+  import { embed } from './peartree/js/peartree.js';
+
+  // Wait for fetchTree() to populate window._bdbvNexus
+  async function initPearTree() {
+    const status = document.getElementById('peartree-status');
+    let attempts = 0;
+    while (!window._bdbvNexus && attempts < 40) {
+      await new Promise(r => setTimeout(r, 250));
+      attempts++;
+    }
+    if (!window._bdbvNexus) {
+      status.textContent = 'Tree data unavailable';
+      return;
+    }
+    console.log('[PearTree] nexus ready, calling embed()');
+    console.log('[PearTree] container:', document.getElementById('bdbv-tree-2026'));
+    try {
+      const ctrl = await embed({
+        container: 'bdbv-tree-2026',
+        tree:      window._bdbvNexus,
+        filename:  'bdbv_2026.nexus',
+        height:    '560px',
+        settings: {
+          tipLabelShow:      'names',
+          tipLabelAlign:     'dashed',
+          tipLabelFontSize:  '11',
+          axisShow:          'forward',
+          axisMajorInterval: 'auto',
+        },
+        ui: {
+          theme:     'light',
+          toolbar:   false,
+          palette:   false,
+          openTree:  false,
+          import:    false,
+          rtt:       false,
+          dataTable: false,
+          statusBar: false,
+        },
+      });
+      console.log('[PearTree] embed() returned:', ctrl);
+      console.log('[PearTree] .pt-embed-wrap:', document.querySelector('.pt-embed-wrap'));
+      console.log('[PearTree] #app-html-host:', document.querySelector('#app-html-host'));
+      console.log('[PearTree] container children:', document.getElementById('bdbv-tree-2026')?.children?.length);
+    } catch (err) {
+      status.textContent = `PearTree render error: ${err.message}`;
+      console.error('[PearTree] embed error:', err);
+    }
+  }
+
+  initPearTree();
+</script>
+</body>
+</html>

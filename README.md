@@ -16,3 +16,10 @@ The community aims to
 
 If you are interested in joining these community of practice please contact the [IPSN Secretariat](mailto:ipsn-secretariat@who.int)
 
+---
+
+### Resources
+
+- 📊 [Live Dashboard](https://who-collaboratory.github.io/collaboratory-ebola-genomics-community/dashboard.html) — real-time sequence counts, outbreak phylogeny and genomes over time
+- 🔬 [Landscape Analysis](landscape.md) — current sequencing approaches, bioinformatics workflows and data sharing guidance
+

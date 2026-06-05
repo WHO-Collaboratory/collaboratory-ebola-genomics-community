@@ -1,0 +1,22 @@
+/*
+ * pearcore-webapp.css — layout for a full-page standalone web app.
+ */
+
+html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+html { background: var(--pt-bg-deepest); }
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--pt-bg-deepest);
+  color: var(--pt-off-white);
+  font-family: var(--bs-body-font-family);
+  font-size: 14px;
+}
+
+#pt-print-layer { display: none; }
+@media print {
+  body > *:not(#pt-print-layer) { display: none !important; }
+  #pt-print-layer { display: block !important; position: fixed; inset: 0; }
+  #pt-print-layer svg { width: 100%; height: auto; }
+}

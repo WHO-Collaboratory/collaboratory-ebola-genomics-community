@@ -1,0 +1,1806 @@
+// rttrenderer.js — Root-to-Tip divergence scatter-plot canvas renderer.
+//
+// Draws tips as (date, root-to-tip divergence) scatter points using the same
+// visual style as the main tree canvas, plus a least-squares regression line
+// and a stats overlay.  Handles its own mouse events for hover, single-click /
+// cmd-click selection and drag-rectangle selection, mirroring tree behaviour.
+//
+// The controller (rttchart.js) owns panel open/close/pin logic and wires this
+// renderer to the tree renderer's state.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { TreeCalibration } from './phylograph.js';
+import { ciHalfWidth, tQuantile } from '@artic-network/pearcore/regression.js';
+import { overlapsZones }   from '@artic-network/pearcore/utils.js';
+import { buildFont, TYPEFACES } from '@artic-network/pearcore/typefaces.js';
+import { Axis } from './axis.js';
+
+// ─── Tick helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Format a decimal year as label lines for the X axis, given the tick step.
+ * Returns an array of 1 or 2 strings (multi-line when step < 1 year).
+ */
+function _fmtDecYear(dy, step, cal, fmt) {
+  if (cal) {
+    if (step >= 1) return [String(Math.round(dy))];
+    if (step >= 1 / 12) {
+      const { year, month } = TreeCalibration.decYearToDate(dy);
+      return [TreeCalibration.MONTHS[month - 1], String(year)];
+    }
+    return [cal.decYearToString(dy, 'full', fmt)];
+  }
+  return [dy.toFixed(Axis.decimalPlacesForStep(step))];
+}
+
+// ─── RTTRenderer ──────────────────────────────────────────────────────────────
+
+export class RTTRenderer {
+  constructor(canvas) {
+    this._canvas = canvas;
+    this._ctx    = canvas.getContext('2d');
+    this._dpr    = window.devicePixelRatio || 1;
+
+    // ── Plot data ──────────────────────────────────────────────────────────
+    /** @type {Array<{id:string, x:number|null, y:number, name:string, colour:string|null}>} */
+    this._points    = [];
+    this._xMin      = 0;  this._xMax = 1;
+    this._yMin      = 0;  this._yMax = 1;
+    /** @type {{a:number,b:number,xInt:number|null,r:number,r2:number,cv:number,n:number}|null} */
+    // Regression is owned by TreeCalibration and read via this._calibration.regression.
+    // No local _regression field needed.
+
+    // ── Tip style — mirrors TreeRenderer public properties ─────────────────
+    this.tipRadius             = 4;
+    this.tipShapeColor         = 'rgba(180,200,220,0.9)';
+    this.tipHaloSize           = 0;
+    this.tipShapeBgColor       = 'rgba(2,41,46,0.9)';
+    this.bgColor               = '#02292e';
+    // ── Stats box colours (theme-settable) ────────────────────────────────
+    this.statsBoxBgColor       = '#081c22';
+    this.statsBoxTextColor     = '#f2f1e6';
+    // ── Regression line style ─────────────────────────────────────────────
+    this.regressionColor       = '';           // '' → fallback to axisColor at 65%
+    this.regressionWidth       = 1.5;          // CSS px (scaled by dpr)
+    // 'solid' | 'bigdash' | 'dash' | 'dots'
+    this.regressionStyle       = 'dash';
+    // ── Residual band (±2σ) ──────────────────────────────────────────────────
+    this.residBandShow         = 'off';        // 'on' | 'off'
+    this.residBandColor        = '';           // '' → fallback to regressionColor
+    this.residBandWidth        = 1;            // CSS px (scaled by dpr)
+    this.residBandStyle        = 'dash';       // 'solid' | 'bigdash' | 'dash' | 'dots'
+    this.residBandFillColor    = '';           // '' → fallback to residBandColor
+    this.residBandFillOpacity  = 0.1;
+    this.fontSize              = 11;
+    this.statsBoxFontSize      = 11;
+    this.fontFamily            = 'Inter, system-ui, sans-serif';
+    this._typefaceKey          = null;
+    this._typefaceStyle        = null;
+
+    // Axis style — synced from the Axis section settings in the palette panel
+    this.axisColor             = '#f2f1e6';
+    this.axisFontSize          = 9;
+    this.axisLineWidth         = 1;
+
+    // Selected-tip indicator style
+    this.selectedTipStrokeColor   = 'rgba(220,200,80,0.9)';
+    this.selectedTipFillColor     = 'rgba(220,200,80,0.3)';
+    this.selectedTipGrowthFactor  = 1.5;
+    this.selectedTipMinSize       = 8;
+    this.selectedTipStrokeWidth   = 2;
+    this.selectedTipStrokeOpacity = 0.9;
+    this.selectedTipFillOpacity   = 0.35;
+
+    // Hover indicator style
+    this.tipHoverStrokeColor      = 'rgba(255,255,255,0.9)';
+    this.tipHoverFillColor        = 'rgba(255,255,255,0.2)';
+    this.tipHoverGrowthFactor     = 1.4;
+    this.tipHoverMinSize          = 6;
+    this.tipHoverStrokeWidth      = 1.5;
+    this.tipHoverStrokeOpacity    = 0.8;
+    this.tipHoverFillOpacity      = 0.2;
+
+    // ── Calibration (for X-axis label formatting) ──────────────────────────
+    this._calibration = null;
+    this._dateFormat  = 'yyyy-MM-dd';
+
+    // Date-axis tick options (synced from Axis panel controls; mirrors AxisRenderer)
+    // { majorInterval, minorInterval, majorLabelFormat, minorLabelFormat }
+    this.tickOptions  = null;
+
+    // RTT X-axis origin mode: 'data' | 'root' | 'interval'.
+    // 'interval' extends to the left interval-curve root-date bound.
+    this.xAxisOrigin  = 'root';
+    // Backward compatibility alias; prefer xAxisOrigin.
+    this.showRootAge  = true;
+
+    // Grid line visibility: 'both' | 'horizontal' | 'vertical' | 'off'
+    this.gridLines    = 'both';
+
+    // Plot area aspect ratio: 'fit' | '1:1' | '4:3' | '3:2' | '16:9'
+    this.aspectRatio  = 'fit';
+
+    // ── Stats box ──────────────────────────────────────────────────────────
+    this.statsBoxVisible  = true;
+    this.statsBoxCorner   = 'tl';              // 'tl' | 'tr' | 'bl' | 'br'
+    this._statsBoxDragActive = false;
+    this._statsBoxDragOffset = null;           // {x,y} CSS-px offset: box-TL to mouse
+    this._statsBoxDragCss    = null;           // {x,y} CSS-px box-TL position during drag
+    this._lastStatsRect      = null;           // last-drawn box rect (physical px)
+    this._lastStatsCloseRect = null;           // last-drawn close-button rect (physical px)
+    this._lastStatsCopyRect  = null;           // last-drawn copy-button rect (physical px)
+    this._lastStatsLines     = null;           // last-drawn stats lines array (for clipboard)
+    this._statsCopyFlash     = 0;             // frames remaining for copy flash feedback
+
+    // ── Selection / hover — kept in sync with TreeRenderer ────────────────
+    this._selectedTipIds = new Set();
+    this._hoveredTipId   = null;
+
+    // ── Drag-select state ──────────────────────────────────────────────────
+    this._dragActive  = false;
+    this._dragStartPx = null;  // CSS pixels
+    this._dragEndPx   = null;
+    this._cmdHeld     = false;
+    this._altHeld     = false;  // Option key → parallelogram aligned with regression line
+
+    // ── Per-render point positions (hit-testing) ───────────────────────────
+    /** @type {Array<{id:string, px:number, py:number}>} physical pixels */
+    this._renderedPts = [];
+    // Deterministic vertical jitter for homochronous strip (id → float in [-1,+1])
+    this._jitterMap   = new Map();
+
+    // Shared axis math core (generic; renderer keeps drawing/layout decisions).
+    this._xAxis = new Axis({ orientation: 'x', type: 'continuous', timeTransform: 'linear' });
+    this._yAxis = new Axis({ orientation: 'y', type: 'continuous', timeTransform: 'linear' });
+
+    // ── Callbacks ──────────────────────────────────────────────────────────
+    this.onSelectionChange       = null;  // (Set<id>) => void
+    this.onHoverChange           = null;  // (id|null) => void
+    this.onStatsBoxVisibleChange = null;  // (visible:boolean) => void
+    this.onStatsBoxCornerChange  = null;  // (corner:string) => void
+
+    this._dirty = true;
+    this._setupEvents();
+    this._startLoop();
+  }
+
+  // ─── Public API ───────────────────────────────────────────────────────────
+
+  /** Replace the full point dataset and recompute bounds. Regression is now
+   *  owned by TreeCalibration — see rttchart.js recomputeCalibration(). */
+  setPoints(pts) {
+    this._points = pts;
+    // Precompute deterministic jitter in [-1,+1] for the homochronous strip.
+    // Uses a simple integer hash of the array index so values are stable
+    // across re-renders without storing anything on the point objects.
+    this._jitterMap = new Map();
+    for (let i = 0; i < pts.length; i++) {
+      const h = (Math.imul(i + 1, 0x9e3779b9) ^ Math.imul(i, 0x6c62272e)) >>> 0;
+      this._jitterMap.set(pts[i].id, (h % 20000) / 10000 - 1);  // → [-1, +1]
+    }
+    this._computeBounds();
+    this._dirty  = true;
+  }
+
+  /** Update the calibration used for X-axis date formatting. */
+  setCalibration(cal, fmt) {
+    this._calibration = cal ?? null;
+    this._dateFormat  = fmt ?? 'yyyy-MM-dd';
+    this._dirty = true;
+  }
+
+  /** Sync the selected-id set from outside (tree renderer). */
+  setSelectedIds(ids) {
+    this._selectedTipIds = ids instanceof Set ? ids : new Set(ids);
+    this._dirty = true;
+  }
+
+  /** Sync the hovered id from outside (tree renderer). */
+  setHoveredId(id) {
+    const next = id ?? null;
+    if (this._hoveredTipId === next) return;
+    this._hoveredTipId = next;
+    this._dirty = true;
+  }
+
+  /** Set the typeface for axis labels (key + style from TYPEFACES). */
+  setTypeface(key, style) {
+    this._typefaceKey   = key   || null;
+    this._typefaceStyle = style || null;
+    this._dirty = true;
+  }
+
+  /** Build a full CSS font string for the given physical pixel size. */
+  _font(sizePx) {
+    if (this._typefaceKey) return buildFont(this._typefaceKey, this._typefaceStyle, sizePx);
+    return `${sizePx}px ${this.fontFamily}`;
+  }
+
+  /** Resize the canvas to its current CSS size, honouring devicePixelRatio. */
+  _resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const w   = this._canvas.clientWidth;
+    const h   = this._canvas.clientHeight;
+    if (w < 1 || h < 1) return;
+    this._canvas.width  = Math.round(w * dpr);
+    this._canvas.height = Math.round(h * dpr);
+    this._dpr = dpr;
+    // Setting canvas dimensions clears the bitmap immediately. Paint synchronously
+    // so the canvas is never blank — the rAF loop will skip the double-render
+    // because _dirty stays false after this.
+    this._render();
+  }
+
+  // ─── Coordinate helpers ────────────────────────────────────────────────────
+
+  /** Plot area rectangle in physical (DPR-scaled) pixels. */
+  _plotRect() {
+    const d  = this._dpr;
+    const W  = this._canvas.width;
+    const H  = this._canvas.height;
+    const mL = Math.round(62 * d);
+    const mR = Math.round(14 * d);
+    const mT = Math.round(14 * d);
+    const mB = Math.round(52 * d);
+    const availW = W - mL - mR;
+    const availH = H - mT - mB;
+    if (!this.aspectRatio || this.aspectRatio === 'fit') {
+      return { x: mL, y: mT, w: availW, h: availH };
+    }
+    const [rw, rh] = this.aspectRatio.split(':').map(Number);
+    const ratio = rw / rh;
+    let pw, ph;
+    if (availW / availH > ratio) {
+      ph = availH;
+      pw = Math.round(ph * ratio);
+    } else {
+      pw = availW;
+      ph = Math.round(pw / ratio);
+    }
+    const ox = mL + Math.round((availW - pw) / 2);
+    const oy = mT + Math.round((availH - ph) / 2);
+    return { x: ox, y: oy, w: pw, h: ph };
+  }
+
+  _xToScreen(v, rect) {
+    this._syncAxes(rect);
+    return this._xAxis.valueToCanvas(v);
+  }
+  _yToScreen(v, rect) {
+    this._syncAxes(rect);
+    return this._yAxis.valueToCanvas(v);
+  }
+
+  /** Sync shared Axis objects from current RTT bounds + plot rectangle. */
+  _syncAxes(rect) {
+    if (!rect) return;
+
+    const xSpan = this._xMax - this._xMin;
+    if (xSpan === 0) {
+      this._xAxis.setType(this._calibration ? 'time' : 'continuous');
+      this._xAxis.setTimeTransform('linear');
+      this._xAxis.setRange(this._xMin, this._xMax);
+      this._xAxis.setTickOptions(this.tickOptions ?? {});
+      this._xAxis.setTransform({ scale: 0, offset: rect.x + rect.w / 2, spacingLeft: 0 });
+    } else {
+      const sx = rect.w / xSpan;
+      const ox = rect.x - this._xMin * sx;
+      this._xAxis.setType(this._calibration ? 'time' : 'continuous');
+      this._xAxis.setTimeTransform('linear');
+      this._xAxis.setRange(this._xMin, this._xMax);
+      this._xAxis.setTickOptions(this.tickOptions ?? {});
+      this._xAxis.setTransform({ scale: sx, offset: ox, spacingLeft: 0 });
+    }
+
+    const ySpan = this._yMax - this._yMin;
+    if (ySpan === 0) {
+      this._yAxis.setType('continuous');
+      this._yAxis.setRange(this._yMin, this._yMax);
+      this._yAxis.setTransform({ scale: 0, offset: rect.y + rect.h / 2, spacingLeft: 0 });
+    } else {
+      const sy = -rect.h / ySpan;
+      const oy = rect.y + rect.h - this._yMin * sy;
+      this._yAxis.setType('continuous');
+      this._yAxis.setRange(this._yMin, this._yMax);
+      this._yAxis.setTransform({ scale: sy, offset: oy, spacingLeft: 0 });
+    }
+  }
+
+  // ─── Bounds & regression ──────────────────────────────────────────────────
+
+  _computeBounds() {
+    // ── Homochronous: no date x values → histogram of divergence ──────────
+    if (this._points.length > 0 && !this._points.some(p => p.x != null)) {
+      let dMin = Infinity, dMax = -Infinity;
+      for (const p of this._points) {
+        if (p.y < dMin) dMin = p.y;
+        if (p.y > dMax) dMax = p.y;
+      }
+      if (!isFinite(dMin)) { dMin = 0; dMax = 1; }
+      const pad = Math.max((dMax - dMin) * 0.06, 1e-9);
+      this._xMin = Math.max(0, dMin - pad);
+      this._xMax = dMax + pad;
+      this._yMin = 0;
+      this._yMax = this._points.length; // refined in _render after bin compute
+      return;
+    }
+    let xMin = Infinity, xMax = -Infinity, yMax = -Infinity;
+    for (const p of this._points) {
+      if (p.x != null) {
+        if (p.x < xMin) xMin = p.x;
+        if (p.x > xMax) xMax = p.x;
+      }
+      if (p.y > yMax) yMax = p.y;
+    }
+    if (!isFinite(xMin)) { xMin = 0; xMax = 1; }
+    if (!isFinite(yMax)) yMax = 1;
+    const dataRange = xMax - xMin;
+    const xPad = Math.max(dataRange * 0.06, 1e-9);
+    const yPad = Math.max(yMax * 0.08, 1e-12);
+    // Extend left bound according to origin mode.
+    // data:      data min with padding
+    // root:      include regression x-intercept (root age)
+    // interval:  include left interval-curve intercept (older root-date bound)
+    let xLeft = xMin - xPad;
+    const originMode = this.xAxisOrigin || (this.showRootAge ? 'root' : 'data');
+    if (originMode === 'root' || originMode === 'interval') {
+      const xInt = this._calibration?.regression?.xInt;
+      if (xInt != null && isFinite(xInt) && xInt < xMin) {
+        const fullRange = xMax - xInt;
+        xLeft = xInt - Math.max(fullRange * 0.04, xPad);
+      }
+    }
+    if (originMode === 'interval') {
+      const xIntLeft = this._leftIntervalCurveX(xMin, xMax);
+      if (xIntLeft != null && isFinite(xIntLeft) && xIntLeft < xLeft) {
+        const fullRange = xMax - xIntLeft;
+        xLeft = xIntLeft - Math.max(fullRange * 0.04, xPad);
+      }
+    }
+    this._xMin = xLeft;
+    this._xMax = xMax + xPad;
+    this._yMin = 0;
+    this._yMax = yMax + yPad;
+  }
+
+  _leftIntervalCurveX(xMin, xMax) {
+    const reg = this._calibration?.regression;
+    if (!reg) return null;
+    const a = reg.a;
+    const b = reg.b;
+    if (!isFinite(a) || a === 0 || !isFinite(b)) return null;
+
+    if (this.residBandShow === 'residual') {
+      const rmse = reg.rmse;
+      if (!(rmse > 0)) return null;
+      const x = (-b - 2 * rmse) / a;
+      return isFinite(x) ? x : null;
+    }
+
+    if (this.residBandShow === 'ci') {
+      if (!(reg.n >= 3) || !(reg.ssxx > 0) || reg.rms == null || !isFinite(reg.xInt)) return null;
+      const f = (x) => a * x + b + ciHalfWidth(x, reg);
+
+      const hi0 = reg.xInt;
+      const fHi = f(hi0);
+      if (!(fHi > 0)) return null;
+
+      let span = Math.max(xMax - xMin, 1);
+      let lo = hi0 - span;
+      let fLo = f(lo);
+      for (let i = 0; i < 40 && !(fLo < 0); i++) {
+        span *= 2;
+        lo = hi0 - span;
+        fLo = f(lo);
+      }
+      if (!(fLo < 0)) return null;
+
+      let hi = hi0;
+      for (let i = 0; i < 80; i++) {
+        const mid = (lo + hi) / 2;
+        if (f(mid) > 0) hi = mid;
+        else lo = mid;
+      }
+      return (lo + hi) / 2;
+    }
+
+    return null;
+  }
+
+  // ─── Render loop ──────────────────────────────────────────────────────────
+
+  _startLoop() {
+    const tick = () => {
+      if (this._dirty) { this._dirty = false; this._render(); }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  _render() {
+    const ctx = this._ctx;
+    const W = this._canvas.width, H = this._canvas.height;
+    if (W < 2 || H < 2) return;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = this.bgColor;
+    ctx.fillRect(0, 0, W, H);
+
+    const rect = this._plotRect();
+    if (rect.w < 30 || rect.h < 30) return;
+
+    if (this._points.length === 0) { this._drawEmptyState(ctx, W, H); return; }
+
+    // ── Homochronous: no tip dates → divergence histogram + strip ─────────
+    if (!this._points.some(p => p.x != null)) {
+      const bins     = this._computeHistoBins(rect);
+      const maxCount = bins.reduce((m, b) => Math.max(m, b.total), 0);
+      // Reserve headroom above the tallest bar for the jitter strip.
+      const headroom  = Math.max(maxCount * 0.40, 1.5);
+      this._yMax      = Math.max(1, maxCount) + headroom;
+      this._yMin      = 0;
+      // Strip is centred in the headroom zone with ±30% jitter amplitude.
+      const stripCenter = maxCount + headroom * 0.55;
+      const jitterAmp   = headroom * 0.30;
+      // Compute mean / sd for mean line and band.
+      const vals = this._points.map(p => p.y).filter(v => v != null && isFinite(v));
+      const n    = vals.length;
+      const mean = n > 0 ? vals.reduce((s, v) => s + v, 0) / n : null;
+      const sd   = (n > 1 && mean != null)
+        ? Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / n)
+        : null;
+      this._renderedPts = [];
+      this._drawGrid(ctx, rect);
+      if (mean != null) this._drawHistoBand(ctx, rect, mean, sd, n);
+      this._drawHistoBars(ctx, rect, bins);
+      if (mean != null) this._drawHistoMeanLine(ctx, rect, mean);
+      this._drawHistoPoints(ctx, rect, stripCenter, jitterAmp);
+      this._drawHistoAxes(ctx, rect);
+      this._drawHistoStatsBox(ctx, rect);
+      if (this._dragActive && this._dragStartPx && this._dragEndPx) {
+        this._drawDragRect(ctx);
+      }
+      return;
+    }
+
+    this._drawGrid(ctx, rect);
+    this._drawAxes(ctx, rect);
+    this._drawResidBand(ctx, rect);
+    this._drawRegression(ctx, rect);
+    this._drawPoints(ctx, rect);
+    this._drawStatsBox(ctx, rect);
+    if (this._dragActive && this._dragStartPx && this._dragEndPx) {
+      this._drawDragRect(ctx);
+    }
+  }
+
+  // Convert a CSS hex colour (#rrggbb) to rgba(r,g,b,alpha) for use in canvas.
+  // Falls back gracefully to the original string for already-rgba values.
+  _colorWithAlpha(color, alpha) {
+    if (color && color.startsWith('#') && color.length === 7) {
+      const r = parseInt(color.slice(1, 3), 16);
+      const g = parseInt(color.slice(3, 5), 16);
+      const b = parseInt(color.slice(5, 7), 16);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+    return color;
+  }
+
+  _drawEmptyState(ctx, W, H) {
+    const d = this._dpr;
+    ctx.fillStyle    = this._colorWithAlpha(this.axisColor, 0.35);
+    ctx.font         = this._font(Math.round(this.axisFontSize * d));
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Provide a tip date annotation to view', W / 2, H / 2 - 10 * d);
+    ctx.fillText('the root-to-tip divergence plot', W / 2, H / 2 + 10 * d);
+  }
+
+  // ─── Grid ─────────────────────────────────────────────────────────────────
+
+  _drawGrid(ctx, rect) {
+    const gl = this.gridLines;
+    if (gl === 'off') return;
+    const d = this._dpr;
+    const drawH = gl === 'both' || gl === 'horizontal';
+    const drawV = gl === 'both' || gl === 'vertical';
+    const { ticks: yTks }         = drawH ? this._yTicksInfo()       : { ticks: [] };
+    // In histogram mode, X axis uses _niceStep (not _niceYearStep) — match that here
+    const isHisto = this._points.length > 0 && !this._points.some(p => p.x != null);
+    let xMajTks;
+    if (!drawV) {
+      xMajTks = [];
+    } else if (isHisto) {
+      const xStep  = Axis.niceStepForRange(this._xMax - this._xMin);
+      const xStart = Math.ceil(this._xMin / xStep - 1e-9) * xStep;
+      xMajTks = [];
+      for (let v = xStart; v <= this._xMax + xStep * 0.001; v += xStep)
+        xMajTks.push(parseFloat(v.toPrecision(10)));
+    } else {
+      xMajTks = this._xTicksInfo(rect).majorTicks;
+    }
+    ctx.save();
+    ctx.strokeStyle = this._colorWithAlpha(this.axisColor, 0.12);
+    ctx.lineWidth   = d;
+    ctx.beginPath();
+    for (const v of yTks) {
+      const py = Math.round(this._yToScreen(v, rect));
+      if (py < rect.y - 1 || py > rect.y + rect.h + 1) continue;
+      ctx.moveTo(rect.x, py);  ctx.lineTo(rect.x + rect.w, py);
+    }
+    for (const v of xMajTks) {
+      const px = Math.round(this._xToScreen(v, rect));
+      if (px < rect.x - 1 || px > rect.x + rect.w + 1) continue;
+      ctx.moveTo(px, rect.y);  ctx.lineTo(px, rect.y + rect.h);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ─── Axes ─────────────────────────────────────────────────────────────────
+
+  _yTicksInfo() {
+    this._yAxis.setType('continuous');
+    this._yAxis.setRange(this._yMin, this._yMax);
+    const { majorTicks: ticks } = this._yAxis.getTicks(5);
+    const step = ticks.length >= 2 ? Math.abs(ticks[1] - ticks[0]) : Axis.niceStepForRange(this._yMax - this._yMin);
+    return { ticks, step };
+  }
+
+  _xTicksInfo(rect = null) {
+    const cal = this._calibration;
+    if (cal) {
+      // Use the shared Axis calendar tick logic so tree and RTT stay aligned.
+      const targetMajor = rect
+        ? Math.max(2, Math.round((rect.w / this._dpr) / 80))
+        : Math.max(2, Math.round(this._canvas.clientWidth / 80));
+      const opts          = this.tickOptions ?? {};
+      const majorInterval = opts.majorInterval || 'auto';
+      this._xAxis.setType('time');
+      this._xAxis.setTimeTransform('linear');
+      this._xAxis.setRange(this._xMin, this._xMax);
+      this._xAxis.setTickOptions(opts);
+      const { majorTicks, minorTicks } = this._xAxis.getTicks(targetMajor);
+      // When the interval was auto-selected, infer the effective calendar interval
+      // from the actual tick spacing for correct partial label formatting.
+      const effectiveMajorInterval = (majorInterval === 'auto')
+        ? TreeCalibration.inferMajorInterval(majorTicks)
+        : majorInterval;
+      return { majorTicks, minorTicks, step: null, majorInterval: effectiveMajorInterval };
+    }
+    // Fallback: plain decimal-year / divergence steps
+    const step  = Axis.niceYearStepForRange(this._xMax - this._xMin);
+    const start = Math.ceil(this._xMin / step) * step;
+    const majorTicks = [];
+    for (let v = start; v <= this._xMax + step * 0.001; v += step) majorTicks.push(v);
+    return { majorTicks, minorTicks: [], step, majorInterval: 'auto' };
+  }
+
+  _drawAxes(ctx, rect) {
+    const d     = this._dpr;
+    const axisC = this._colorWithAlpha(this.axisColor, 0.55);
+    const lblC  = this._colorWithAlpha(this.axisColor, 0.90);
+    const fsz   = Math.max(6, Math.round(this.axisFontSize * d));
+    const font  = this._font(fsz);
+    const tc    = Math.round(4 * d);           // tick half-length (physical px)
+
+    const { ticks: yTks, step: yStep } = this._yTicksInfo();
+
+    ctx.save();
+
+    // Axis border lines
+    ctx.strokeStyle = axisC;
+    ctx.lineWidth   = this.axisLineWidth * d;
+    ctx.beginPath();
+    ctx.moveTo(rect.x, rect.y);               ctx.lineTo(rect.x, rect.y + rect.h);
+    ctx.moveTo(rect.x, rect.y + rect.h);      ctx.lineTo(rect.x + rect.w, rect.y + rect.h);
+    ctx.stroke();
+
+    // ── Y axis ─────────────────────────────────────────────────────────────
+    const dp = Axis.decimalPlacesForStep(yStep);
+    ctx.font = font;
+    ctx.fillStyle    = lblC;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign    = 'right';
+    for (const v of yTks) {
+      const py = Math.round(this._yToScreen(v, rect));
+      if (py < rect.y - 2 || py > rect.y + rect.h + 2) continue;
+      ctx.beginPath();
+      ctx.strokeStyle = axisC;
+      ctx.lineWidth   = this.axisLineWidth * d;
+      ctx.moveTo(rect.x - tc, py);  ctx.lineTo(rect.x, py);
+      ctx.stroke();
+      ctx.fillText(v.toFixed(dp), rect.x - tc - Math.round(3 * d), py);
+    }
+
+    // Y axis title (rotated)
+    ctx.save();
+    ctx.font         = this._font(Math.max(6, Math.round(this.axisFontSize * 0.9 * d)));
+    ctx.fillStyle    = this._colorWithAlpha(this.axisColor, 0.90);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.translate(Math.round(8 * d), rect.y + rect.h / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Root-to-tip divergence', 0, 0);
+    ctx.restore();
+
+    // ── X axis ─────────────────────────────────────────────────────────────
+    const cal  = this._calibration;
+    const fmt  = this._dateFormat;
+    const opts = this.tickOptions ?? {};
+    const ty   = rect.y + rect.h;
+    const tcMajor = Math.round(5 * d);
+    const tcMinor = Math.round(3 * d);
+
+    const { majorTicks: xMajor, minorTicks: xMinor, step: xStep, majorInterval } =
+      this._xTicksInfo(rect);
+
+    const majorLabelFmt  = opts.majorLabelFormat || 'auto';
+    const minorLabelFmt  = opts.minorLabelFormat || 'off';
+    const showMajorLabel = majorLabelFmt !== 'off';
+    const showMinorLabel = minorLabelFmt !== 'off';
+    const lblDimC        = this._colorWithAlpha(this.axisColor, 0.50);
+
+    ctx.textBaseline = 'top';
+    ctx.textAlign    = 'center';
+
+    // Pre-compute major-label bounding boxes so minor labels can be suppressed
+    // when they would overlap a major label.
+    const majorLabelZones = [];
+    if (showMinorLabel && showMajorLabel && cal && xMajor.length > 0) {
+      ctx.font = font;
+      for (const v of xMajor) {
+        const px = Math.round(this._xToScreen(v, rect));
+        if (px < rect.x - 2 || px > rect.x + rect.w + 2) continue;
+        const effFmt = (majorLabelFmt === 'auto') ? 'partial' : majorLabelFmt;
+        const label  = cal.decYearToString(v, effFmt, fmt, majorInterval);
+        if (!label) continue;
+        const tw = ctx.measureText(label).width;
+        majorLabelZones.push([px - tw / 2 - 4, px + tw / 2 + 4]);
+      }
+    }
+
+    // Minor ticks (shorter, dimmer)
+    if (xMinor.length > 0) {
+      ctx.font = this._font(Math.max(6, Math.round(this.axisFontSize * 0.85 * d)));
+      let lastMinorRight = -Infinity;
+      // Infer effective minor interval from tick spacing when 'auto'.
+      const effMinorInterval = (opts.minorInterval === 'auto' || !opts.minorInterval)
+        ? TreeCalibration.inferMajorInterval(xMinor)
+        : opts.minorInterval;
+      for (const v of xMinor) {
+        const px = Math.round(this._xToScreen(v, rect));
+        if (px < rect.x - 2 || px > rect.x + rect.w + 2) continue;
+        ctx.beginPath();
+        ctx.strokeStyle = this._colorWithAlpha(this.axisColor, 0.55);
+        ctx.lineWidth   = this.axisLineWidth * d;
+        ctx.moveTo(px, ty);  ctx.lineTo(px, ty + tcMinor);
+        ctx.stroke();
+        if (showMinorLabel && cal) {
+          const label = cal.decYearToString(v, minorLabelFmt, fmt, effMinorInterval);
+          const tw    = ctx.measureText(label).width;
+          if (px - tw / 2 > lastMinorRight + 2 && !overlapsZones(px - tw / 2, px + tw / 2, majorLabelZones)) {
+            ctx.fillStyle = lblDimC;
+            ctx.fillText(label, px, ty + tcMinor + Math.round(2 * d));
+            lastMinorRight = px + tw / 2;
+          }
+        }
+      }
+    }
+
+    // Major ticks + labels
+    ctx.font = font;
+    let lastMajorRight = -Infinity;
+    for (const v of xMajor) {
+      const px = Math.round(this._xToScreen(v, rect));
+      if (px < rect.x - 2 || px > rect.x + rect.w + 2) continue;
+      ctx.beginPath();
+      ctx.strokeStyle = axisC;
+      ctx.lineWidth   = this.axisLineWidth * d;
+      ctx.moveTo(px, ty);  ctx.lineTo(px, ty + tcMajor);
+      ctx.stroke();
+      if (showMajorLabel) {
+        let label;
+        if (cal) {
+          const effFmt = (majorLabelFmt === 'auto') ? 'partial' : majorLabelFmt;
+          label = cal.decYearToString(v, effFmt, fmt, majorInterval);
+        } else {
+          label = _fmtDecYear(v, xStep, null, fmt)[0];
+        }
+        const tw = ctx.measureText(label).width;
+        if (px - tw / 2 > lastMajorRight + 2) {
+          ctx.fillStyle = lblC;
+          ctx.fillText(label, px, ty + tcMajor + Math.round(2 * d));
+          lastMajorRight = px + tw / 2;
+        }
+      }
+    }
+
+    ctx.restore();
+  }
+
+  // ─── Residual band ─────────────────────────────────────────────────────────
+
+  _drawResidBand(ctx, rect) {
+    const reg = this._calibration?.regression;
+    if (!reg) return;
+    // 'on' is the legacy value; treat as 'residual' for backward compat.
+    const mode = this.residBandShow === 'on' ? 'residual' : this.residBandShow;
+    if (!mode || mode === 'off') return;
+
+    const d = this._dpr;
+    const { a, b } = reg;
+
+    // ── Common style resolution ────────────────────────────────────────────
+    const lineColor = this.residBandColor
+      ? this.residBandColor
+      : (this.regressionColor || this._colorWithAlpha(this.axisColor, 0.55));
+    const fillColor = this.residBandFillColor || lineColor;
+
+    let dash;
+    switch (this.residBandStyle) {
+      case 'solid':   dash = [];                                                break;
+      case 'bigdash': dash = [Math.round(12 * d), Math.round(5 * d)];         break;
+      case 'dots':    dash = [0, Math.round(this.residBandWidth * 1.5 * d)];  break;
+      default:        dash = [Math.round(6 * d), Math.round(4 * d)];          break;
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, rect.w, rect.h);
+    ctx.clip();
+
+    const fillOpacity = parseFloat(this.residBandFillOpacity) || 0;
+
+    if (mode === 'residual') {
+      // ── ±2σ residual band — two parallel straight lines ─────────────────
+      const rmse = reg.rmse;
+      if (!rmse || rmse <= 0) { ctx.restore(); return; }
+
+      const x1 = this._xMin, x2 = this._xMax;
+      const yHi1 = a * x1 + b + 2 * rmse,  yHi2 = a * x2 + b + 2 * rmse;
+      const yLo1 = a * x1 + b - 2 * rmse,  yLo2 = a * x2 + b - 2 * rmse;
+      const sx1   = this._xToScreen(x1,   rect);
+      const sx2   = this._xToScreen(x2,   rect);
+      const syHi1 = this._yToScreen(yHi1, rect);
+      const syHi2 = this._yToScreen(yHi2, rect);
+      const syLo1 = this._yToScreen(yLo1, rect);
+      const syLo2 = this._yToScreen(yLo2, rect);
+
+      if (fillOpacity > 0) {
+        ctx.beginPath();
+        ctx.moveTo(sx1, syHi1); ctx.lineTo(sx2, syHi2);
+        ctx.lineTo(sx2, syLo2); ctx.lineTo(sx1, syLo1);
+        ctx.closePath();
+        ctx.fillStyle = fillColor; ctx.globalAlpha = fillOpacity;
+        ctx.fill(); ctx.globalAlpha = 1;
+      }
+      if (this.residBandWidth > 0) {
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth   = this.residBandWidth * d;
+        ctx.setLineDash(dash);
+        ctx.lineCap = (this.residBandStyle === 'dots') ? 'round' : 'butt';
+        ctx.beginPath(); ctx.moveTo(sx1, syHi1); ctx.lineTo(sx2, syHi2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sx1, syLo1); ctx.lineTo(sx2, syLo2); ctx.stroke();
+      }
+
+    } else if (mode === 'ci') {
+      // ── 95% confidence interval for the mean — curved (hyperbolic) envelope
+      if (reg.rms == null || !reg.ssxx || reg.ssxx <= 0 || reg.n < 3) { ctx.restore(); return; }
+
+      const N  = 60;
+      const dx = (this._xMax - this._xMin) / N;
+      const upper = [], lower = [];
+      for (let i = 0; i <= N; i++) {
+        const xv = this._xMin + i * dx;
+        const hw = ciHalfWidth(xv, reg);
+        const mid = a * xv + b;
+        upper.push([this._xToScreen(xv, rect), this._yToScreen(mid + hw, rect)]);
+        lower.push([this._xToScreen(xv, rect), this._yToScreen(mid - hw, rect)]);
+      }
+
+      if (fillOpacity > 0) {
+        ctx.beginPath();
+        ctx.moveTo(upper[0][0], upper[0][1]);
+        for (let i = 1; i < upper.length; i++) ctx.lineTo(upper[i][0], upper[i][1]);
+        for (let i = lower.length - 1; i >= 0; i--) ctx.lineTo(lower[i][0], lower[i][1]);
+        ctx.closePath();
+        ctx.fillStyle = fillColor; ctx.globalAlpha = fillOpacity;
+        ctx.fill(); ctx.globalAlpha = 1;
+      }
+      if (this.residBandWidth > 0) {
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth   = this.residBandWidth * d;
+        ctx.setLineDash(dash);
+        ctx.lineCap = (this.residBandStyle === 'dots') ? 'round' : 'butt';
+        ctx.beginPath();
+        ctx.moveTo(upper[0][0], upper[0][1]);
+        for (let i = 1; i < upper.length; i++) ctx.lineTo(upper[i][0], upper[i][1]);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(lower[0][0], lower[0][1]);
+        for (let i = 1; i < lower.length; i++) ctx.lineTo(lower[i][0], lower[i][1]);
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  // ─── Regression line ──────────────────────────────────────────────────────
+
+  _drawRegression(ctx, rect) {
+    const reg = this._calibration?.regression;
+    if (!reg) return;
+    const d   = this._dpr;
+    const y1  = reg.a * this._xMin + reg.b;
+    const y2  = reg.a * this._xMax + reg.b;
+
+    // Resolve colour: explicit setting, or fall back to axis colour at 65% alpha
+    const color = this.regressionColor
+      ? this.regressionColor
+      : this._colorWithAlpha(this.axisColor, 0.65);
+
+    // Resolve dash pattern
+    const u = d; // shorthand for one physical pixel
+    let dash;
+    switch (this.regressionStyle) {
+      case 'solid':   dash = [];                                         break;
+      case 'bigdash': dash = [Math.round(12 * u), Math.round(5 * u)];  break;
+      case 'dots':    dash = [0, Math.round(this.regressionWidth * 1.5 * d)]; break;
+      default:        dash = [Math.round(6 * u), Math.round(4 * u)];   break; // 'dash'
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, rect.w, rect.h);
+    ctx.clip();
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = this.regressionWidth * d;
+    ctx.setLineDash(dash);
+    // Round line caps turn the zero-length dash segments into circles for the 'dots' style.
+    ctx.lineCap = (this.regressionStyle === 'dots') ? 'round' : 'butt';
+    ctx.beginPath();
+    ctx.moveTo(this._xToScreen(this._xMin, rect), this._yToScreen(y1, rect));
+    ctx.lineTo(this._xToScreen(this._xMax, rect), this._yToScreen(y2, rect));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ─── Scatter points ────────────────────────────────────────────────────────
+
+  _drawPoints(ctx, rect) {
+    const ptCoords = this._points
+      .filter(p => p.x != null)
+      .map(p => ({
+        id:     p.id,
+        px:     this._xToScreen(p.x, rect),
+        py:     this._yToScreen(p.y, rect),
+        colour: p.colour,
+      }));
+    this._renderedPts = [];
+    this._drawTipCircles(ctx, rect, ptCoords);
+  }
+
+  // ─── Shared 4-pass tip-circle renderer ────────────────────────────────────
+
+  /**
+   * Draw tip dots in four passes (halos, fills, selection rings, hover).
+   * Appends hit-test entries to this._renderedPts.
+   * @param {Array<{id:string, px:number, py:number, colour?:string}>} pts
+   */
+  _drawTipCircles(ctx, rect, pts) {
+    const d    = this._dpr;
+    const tipR = Math.max(1.5, this.tipRadius * d);
+    const sel  = this._selectedTipIds;
+    const hov  = this._hoveredTipId;
+
+    ctx.save();
+    // Clip to a generous region around the plot area so halos near the edge show
+    ctx.beginPath();
+    ctx.rect(rect.x - tipR * 4, rect.y - tipR * 4, rect.w + tipR * 8, rect.h + tipR * 8);
+    ctx.clip();
+
+    // Pass 1: halos (painted first, behind all circles)
+    if (this.tipHaloSize > 0) {
+      ctx.lineWidth   = this.tipHaloSize * 2 * d;
+      ctx.strokeStyle = this.tipShapeBgColor;
+      for (const p of pts) {
+        ctx.beginPath(); ctx.arc(p.px, p.py, tipR, 0, 2 * Math.PI); ctx.stroke();
+      }
+    }
+
+    // Pass 2: fills + record for hit-testing
+    for (const p of pts) {
+      ctx.fillStyle   = p.colour ?? this.tipShapeColor;
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(p.px, p.py, tipR, 0, 2 * Math.PI); ctx.fill();
+      this._renderedPts.push({ id: p.id, px: p.px, py: p.py });
+    }
+
+    // Pass 3: selection indicators
+    for (const p of pts) {
+      if (!sel.has(p.id)) continue;
+      const mr = Math.max(tipR * this.selectedTipGrowthFactor, this.selectedTipMinSize * d);
+      ctx.globalAlpha = this.selectedTipStrokeOpacity;
+      ctx.strokeStyle = this.selectedTipStrokeColor;
+      ctx.lineWidth   = this.selectedTipStrokeWidth * d;
+      ctx.beginPath(); ctx.arc(p.px, p.py, mr, 0, 2 * Math.PI); ctx.stroke();
+      ctx.globalAlpha = this.selectedTipFillOpacity;
+      ctx.fillStyle   = this.selectedTipFillColor;
+      ctx.beginPath(); ctx.arc(p.px, p.py, mr, 0, 2 * Math.PI); ctx.fill();
+      // Re-draw the original dot on top of the selection ring
+      ctx.globalAlpha = 1;
+      ctx.fillStyle   = p.colour ?? this.tipShapeColor;
+      ctx.beginPath(); ctx.arc(p.px, p.py, tipR, 0, 2 * Math.PI); ctx.fill();
+    }
+
+    // Pass 4: hover indicator
+    const hovPt = pts.find(p => p.id === hov);
+    if (hovPt) {
+      const hr = Math.max(tipR * this.tipHoverGrowthFactor, this.tipHoverMinSize * d);
+      ctx.globalAlpha = this.tipHoverStrokeOpacity;
+      ctx.strokeStyle = this.tipHoverStrokeColor;
+      ctx.lineWidth   = this.tipHoverStrokeWidth * d;
+      ctx.beginPath(); ctx.arc(hovPt.px, hovPt.py, hr, 0, 2 * Math.PI); ctx.stroke();
+      ctx.globalAlpha = this.tipHoverFillOpacity;
+      ctx.fillStyle   = this.tipHoverFillColor;
+      ctx.beginPath(); ctx.arc(hovPt.px, hovPt.py, hr, 0, 2 * Math.PI); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle   = hovPt.colour ?? this.tipShapeColor;
+      ctx.beginPath(); ctx.arc(hovPt.px, hovPt.py, tipR, 0, 2 * Math.PI); ctx.fill();
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // ─── Stats box ────────────────────────────────────────────────────────────
+
+  _drawStatsBox(ctx, rect) {
+    const reg = this._calibration?.regression;
+    if (!reg || !this.statsBoxVisible) return;
+    const d   = this._dpr;
+    const cal = this._calibration;
+    const fmt = this._dateFormat;
+    const fsz = Math.max(6, Math.round(this.statsBoxFontSize * 0.9 * d));
+    const lh  = Math.round(fsz * 1.6);
+    const pad = Math.round(7 * d);
+    const boxW   = Math.round(148 * (this.statsBoxFontSize / 11) * d);
+
+    const lines = [
+      ['n',         String(reg.n)],
+      ['Slope',     `${reg.a.toExponential(3)} /yr`],
+    ];
+    if (reg.xInt != null) {
+      const rootLbl = cal ? cal.decYearToString(reg.xInt, 'full', fmt) : reg.xInt.toFixed(3);
+      lines.push(['Root date', rootLbl]);
+    }
+    lines.push(['R²',   reg.r2.toFixed(4)]);
+    lines.push(['Res. mean sq.', reg.rms != null ? reg.rms.toExponential(3) : '—']);
+    lines.push(['CV',   reg.cv.toFixed(4)]);
+
+    const btnRowH = Math.round(20 * d);
+    const boxH   = lines.length * lh + pad + btnRowH;
+    const br     = Math.round(4 * d);
+    const margin = Math.round(6 * d);
+
+    // Box position: from corner when at rest, from drag coords when dragging
+    let bx, by;
+    if (this._statsBoxDragActive && this._statsBoxDragCss) {
+      bx = Math.round(this._statsBoxDragCss.x * d);
+      by = Math.round(this._statsBoxDragCss.y * d);
+    } else {
+      const c = this.statsBoxCorner;
+      bx = (c === 'tl' || c === 'bl') ? rect.x + margin : rect.x + rect.w - boxW - margin;
+      by = (c === 'tl' || c === 'tr') ? rect.y + margin : rect.y + rect.h - boxH - margin;
+    }
+
+    // Store for hit-testing (physical px)
+    this._lastStatsRect  = { x: bx, y: by, w: boxW, h: boxH };
+    this._lastStatsLines = lines;
+
+    ctx.save();
+    // Box background
+    ctx.globalAlpha = 0.88;
+    ctx.fillStyle   = this.statsBoxBgColor;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, boxW, boxH, br);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = this._colorWithAlpha(this.statsBoxTextColor, 0.22);
+    ctx.lineWidth   = d;
+    ctx.stroke();
+
+    // Text rows
+    ctx.font = this._font(fsz);
+    for (let i = 0; i < lines.length; i++) {
+      const ty = by + pad * 0.45 + i * lh + fsz * 0.55;
+      ctx.fillStyle    = this._colorWithAlpha(this.statsBoxTextColor, 0.50);
+      ctx.textAlign    = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(lines[i][0], bx + pad * 0.7, ty);
+      ctx.fillStyle = this._colorWithAlpha(this.statsBoxTextColor, 0.90);
+      ctx.textAlign = 'right';
+      ctx.fillText(lines[i][1], bx + boxW - pad * 0.7, ty);
+    }
+
+    // Copy button — own row at the bottom
+    this._drawStatsCopyButton(ctx, bx, by, boxW, boxH, pad, d);
+
+    ctx.restore();
+  }
+
+  // ─── Histogram (homochronous mode) ────────────────────────────────────────
+
+  _computeHistoBins(rect) {
+    const d     = this._dpr;
+    const nBins = Math.max(8, Math.min(80, Math.round(rect.w / d / 8)));
+    const range = this._xMax - this._xMin;
+    const binW  = range / nBins;
+    const bins  = Array.from({ length: nBins }, (_, i) => ({
+      x0:      this._xMin + i * binW,
+      x1:      this._xMin + (i + 1) * binW,
+      total:   0,
+      colours: new Map(),
+      ids:     [],
+    }));
+    for (const p of this._points) {
+      if (p.y == null || !isFinite(p.y)) continue;
+      let bi = Math.floor((p.y - this._xMin) / binW);
+      bi = Math.max(0, Math.min(nBins - 1, bi));
+      bins[bi].total++;
+      bins[bi].ids.push(p.id);
+      bins[bi].colours.set(p.colour, (bins[bi].colours.get(p.colour) ?? 0) + 1);
+    }
+    return bins;
+  }
+
+  // ─── Homochronous: vertical mean line ──────────────────────────────────────
+
+  _drawHistoMeanLine(ctx, rect, mean) {
+    const d  = this._dpr;
+    const px = this._xToScreen(mean, rect);
+    if (px < rect.x - 1 || px > rect.x + rect.w + 1) return;
+    const color = this.regressionColor
+      ? this.regressionColor
+      : this._colorWithAlpha(this.axisColor, 0.65);
+    let dash;
+    switch (this.regressionStyle) {
+      case 'solid':   dash = [];                                                break;
+      case 'bigdash': dash = [Math.round(12 * d), Math.round(5 * d)];         break;
+      case 'dots':    dash = [0, Math.round(this.regressionWidth * 1.5 * d)]; break;
+      default:        dash = [Math.round(6 * d), Math.round(4 * d)];          break;
+    }
+    ctx.save();
+    ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.w, rect.h); ctx.clip();
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = this.regressionWidth * d;
+    ctx.setLineDash(dash);
+    ctx.lineCap     = this.regressionStyle === 'dots' ? 'round' : 'butt';
+    ctx.beginPath();
+    ctx.moveTo(px, rect.y); ctx.lineTo(px, rect.y + rect.h);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ─── Homochronous: ±2σ / 95%-CI vertical band ────────────────────────────
+
+  _drawHistoBand(ctx, rect, mean, sd, n) {
+    const mode = this.residBandShow === 'on' ? 'residual' : this.residBandShow;
+    if (!mode || mode === 'off') return;
+    if (!sd || sd <= 0 || n < 2) return;
+
+    const d = this._dpr;
+    const lineColor = this.residBandColor
+      ? this.residBandColor
+      : (this.regressionColor || this._colorWithAlpha(this.axisColor, 0.55));
+    const fillColor = this.residBandFillColor || lineColor;
+
+    let xLo, xHi;
+    if (mode === 'residual') {
+      xLo = mean - 2 * sd;
+      xHi = mean + 2 * sd;
+    } else {
+      // 95% CI for the mean: t(n-1, 0.05) × sd / √n
+      const hw = tQuantile(n - 1) * sd / Math.sqrt(n);
+      xLo = mean - hw;
+      xHi = mean + hw;
+    }
+
+    const fillOpacity = parseFloat(this.residBandFillOpacity) || 0;
+    let dash;
+    switch (this.residBandStyle) {
+      case 'solid':   dash = [];                                                break;
+      case 'bigdash': dash = [Math.round(12 * d), Math.round(5 * d)];         break;
+      case 'dots':    dash = [0, Math.round(this.residBandWidth * 1.5 * d)];  break;
+      default:        dash = [Math.round(6 * d), Math.round(4 * d)];          break;
+    }
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.w, rect.h); ctx.clip();
+
+    const pxLo = this._xToScreen(xLo, rect);
+    const pxHi = this._xToScreen(xHi, rect);
+    const bandW = pxHi - pxLo;
+
+    if (fillOpacity > 0) {
+      ctx.globalAlpha = fillOpacity;
+      ctx.fillStyle   = fillColor;
+      ctx.fillRect(pxLo, rect.y, bandW, rect.h);
+      ctx.globalAlpha = 1;
+    }
+    if (this.residBandWidth > 0) {
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth   = this.residBandWidth * d;
+      ctx.setLineDash(dash);
+      ctx.lineCap     = this.residBandStyle === 'dots' ? 'round' : 'butt';
+      ctx.beginPath(); ctx.moveTo(pxLo, rect.y); ctx.lineTo(pxLo, rect.y + rect.h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pxHi, rect.y); ctx.lineTo(pxHi, rect.y + rect.h); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ─── Homochronous: individual tip strip (with jitter) ────────────────────
+
+  _drawHistoPoints(ctx, rect, stripCenter, jitterAmp) {
+    const ptCoords = this._points
+      .filter(p => p.y != null && isFinite(p.y))
+      .map(p => ({
+        id:     p.id,
+        px:     this._xToScreen(p.y, rect),
+        py:     this._yToScreen(stripCenter + (this._jitterMap.get(p.id) ?? 0) * jitterAmp, rect),
+        colour: p.colour,
+      }));
+    this._drawTipCircles(ctx, rect, ptCoords);
+  }
+
+  _drawHistoBars(ctx, rect, bins) {
+    const d        = this._dpr;
+    const tipC     = this.tipShapeColor;
+    const selIds   = this._selectedTipIds;
+    const hovId    = this._hoveredTipId;
+    const outlineC = this._colorWithAlpha(this.axisColor, 0.40);
+    ctx.save();
+    for (const bin of bins) {
+      if (bin.total === 0) continue;
+      const barL   = Math.round(this._xToScreen(bin.x0, rect)) + 1;
+      const barR   = Math.round(this._xToScreen(bin.x1, rect)) - 1;
+      const barBot = rect.y + rect.h;
+      const barTop = Math.round(this._yToScreen(bin.total, rect));
+      const barW   = Math.max(1, barR - barL);
+      const barH   = Math.max(1, barBot - barTop);
+      const hasSelected = bin.ids.some(id => selIds.has(id));
+      const hasHovered  = hovId != null && bin.ids.includes(hovId);
+      if (bin.colours.size <= 1) {
+        const c = [...bin.colours.keys()][0];
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle   = c ?? tipC;
+        ctx.fillRect(barL, barTop, barW, barH);
+      } else {
+        let stackY = barBot;
+        for (const [c, count] of bin.colours) {
+          const segH = Math.max(1, Math.round(barH * count / bin.total));
+          ctx.globalAlpha = 0.75;
+          ctx.fillStyle   = c ?? tipC;
+          ctx.fillRect(barL, stackY - segH, barW, segH);
+          stackY -= segH;
+        }
+      }
+      if (hasHovered) {
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle   = 'rgba(255,255,255,1)';
+        ctx.fillRect(barL, barTop, barW, barH);
+      }
+      // Thin axis-coloured outline on every bar
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = outlineC;
+      ctx.lineWidth   = d;
+      ctx.strokeRect(barL + 0.5, barTop + 0.5, barW - 1, barH - 1);
+      if (hasSelected) {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = this.selectedTipStrokeColor;
+        ctx.lineWidth   = 1.5 * d;
+        ctx.strokeRect(barL + 0.5, barTop + 0.5, barW - 1, barH - 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  _drawHistoAxes(ctx, rect) {
+    const d     = this._dpr;
+    const axisC = this._colorWithAlpha(this.axisColor, 0.55);
+    const lblC  = this._colorWithAlpha(this.axisColor, 0.90);
+    const fsz   = Math.max(6, Math.round(this.axisFontSize * d));
+    const font  = this._font(fsz);
+    const tc    = Math.round(4 * d);
+    // Use _niceStep for divergence X axis (better resolution than _niceYearStep)
+    const xRange = this._xMax - this._xMin;
+    const xStep  = Axis.niceStepForRange(xRange);
+    const xStart = Math.ceil(this._xMin / xStep - 1e-9) * xStep;
+    const xTks   = [];
+    for (let v = xStart; v <= this._xMax + xStep * 0.001; v += xStep)
+      xTks.push(parseFloat(v.toPrecision(10)));
+    const xDp = Axis.decimalPlacesForStep(xStep);
+    const { ticks: yTks } = this._yTicksInfo();
+    ctx.save();
+    // Axis border lines
+    ctx.strokeStyle = axisC;
+    ctx.lineWidth   = this.axisLineWidth * d;
+    ctx.beginPath();
+    ctx.moveTo(rect.x, rect.y);           ctx.lineTo(rect.x, rect.y + rect.h);
+    ctx.moveTo(rect.x, rect.y + rect.h);  ctx.lineTo(rect.x + rect.w, rect.y + rect.h);
+    ctx.stroke();
+    // Y axis — integer counts
+    ctx.font         = font;
+    ctx.fillStyle    = lblC;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign    = 'right';
+    for (const v of yTks) {
+      const iv = Math.round(v);
+      if (Math.abs(v - iv) > 0.01) continue;
+      const py = Math.round(this._yToScreen(v, rect));
+      if (py < rect.y - 2 || py > rect.y + rect.h + 2) continue;
+      ctx.beginPath();
+      ctx.strokeStyle = axisC;
+      ctx.lineWidth   = this.axisLineWidth * d;
+      ctx.moveTo(rect.x - tc, py);  ctx.lineTo(rect.x, py);
+      ctx.stroke();
+      ctx.fillText(String(iv), rect.x - tc - Math.round(3 * d), py);
+    }
+    // Y axis title
+    ctx.save();
+    ctx.font         = this._font(Math.max(6, Math.round(this.axisFontSize * 0.9 * d)));
+    ctx.fillStyle    = this._colorWithAlpha(this.axisColor, 0.90);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.translate(Math.round(8 * d), rect.y + rect.h / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Count', 0, 0);
+    ctx.restore();
+    // X axis — divergence ticks
+    const ty = rect.y + rect.h;
+    ctx.font         = font;
+    ctx.fillStyle    = lblC;
+    ctx.textBaseline = 'top';
+    ctx.textAlign    = 'center';
+    for (const v of xTks) {
+      const px = Math.round(this._xToScreen(v, rect));
+      if (px < rect.x - 2 || px > rect.x + rect.w + 2) continue;
+      ctx.beginPath();
+      ctx.strokeStyle = axisC;
+      ctx.lineWidth   = this.axisLineWidth * d;
+      ctx.moveTo(px, ty);  ctx.lineTo(px, ty + tc);
+      ctx.stroke();
+      ctx.fillText(v.toFixed(xDp), px, ty + tc + Math.round(2 * d));
+    }
+    // X axis title
+    ctx.font         = this._font(Math.max(6, Math.round(this.axisFontSize * 0.9 * d)));
+    ctx.fillStyle    = this._colorWithAlpha(this.axisColor, 0.90);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Root-to-tip divergence',
+      rect.x + rect.w / 2,
+      ty + tc + fsz + Math.round(6 * d));
+    ctx.restore();
+  }
+
+  _drawHistoStatsBox(ctx, rect) {
+    if (!this.statsBoxVisible) return;
+    const n = this._points.length;
+    if (n === 0) return;
+    const vals = this._points.map(p => p.y).sort((a, b) => a - b);
+    const mean   = vals.reduce((s, v) => s + v, 0) / n;
+    const median = n % 2 === 0
+      ? (vals[n / 2 - 1] + vals[n / 2]) / 2
+      : vals[(n - 1) / 2];
+    const variance = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
+    const sd = Math.sqrt(variance);
+    const fmt = v => parseFloat(v.toPrecision(4)).toString();
+    const d   = this._dpr;
+    const fsz = Math.max(6, Math.round(this.statsBoxFontSize * 0.9 * d));
+    const lh  = Math.round(fsz * 1.6);
+    const pad = Math.round(7 * d);
+    const boxW   = Math.round(148 * (this.statsBoxFontSize / 11) * d);
+    const lines = [
+      ['n',        String(n)],
+      ['Mean',     fmt(mean)],
+      ['Median',   fmt(median)],
+      ['Variance', parseFloat(variance.toPrecision(4)).toString()],
+      ['Std dev',  fmt(sd)],
+      ['Min',      fmt(vals[0])],
+      ['Max',      fmt(vals[n - 1])],
+    ];
+    const btnRowH = Math.round(20 * d);
+    const boxH   = lines.length * lh + pad + btnRowH;
+    const br     = Math.round(4 * d);
+    const margin = Math.round(6 * d);
+    let bx, by;
+    if (this._statsBoxDragActive && this._statsBoxDragCss) {
+      bx = Math.round(this._statsBoxDragCss.x * d);
+      by = Math.round(this._statsBoxDragCss.y * d);
+    } else {
+      const c = this.statsBoxCorner;
+      bx = (c === 'tl' || c === 'bl') ? rect.x + margin : rect.x + rect.w - boxW - margin;
+      by = (c === 'tl' || c === 'tr') ? rect.y + margin : rect.y + rect.h - boxH - margin;
+    }
+    this._lastStatsRect  = { x: bx, y: by, w: boxW, h: boxH };
+    this._lastStatsLines = lines;
+    ctx.save();
+    ctx.globalAlpha = 0.88;
+    ctx.fillStyle   = this.statsBoxBgColor;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, boxW, boxH, br);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = this._colorWithAlpha(this.statsBoxTextColor, 0.22);
+    ctx.lineWidth   = d;
+    ctx.stroke();
+    ctx.font = this._font(fsz);
+    for (let i = 0; i < lines.length; i++) {
+      const ty = by + pad * 0.45 + i * lh + fsz * 0.55;
+      ctx.fillStyle    = this._colorWithAlpha(this.statsBoxTextColor, 0.50);
+      ctx.textAlign    = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(lines[i][0], bx + pad * 0.7, ty);
+      ctx.fillStyle    = this._colorWithAlpha(this.statsBoxTextColor, 0.90);
+      ctx.textAlign    = 'right';
+      ctx.fillText(lines[i][1], bx + boxW - pad * 0.7, ty);
+    }
+    // Copy button — own row at the bottom
+    this._drawStatsCopyButton(ctx, bx, by, boxW, boxH, pad, d);
+
+    ctx.restore();
+  }
+
+  // ─── Copy button shared draw helper ──────────────────────────────────────
+
+  _drawStatsCopyButton(ctx, bx, by, boxW, boxH, pad, d) {
+    const btnSz   = Math.round(13 * d);
+    const margin  = Math.round(3 * d);
+    // Separator line above the button row
+    const sepY = by + boxH - Math.round(20 * d);
+    ctx.save();
+    ctx.strokeStyle = this._colorWithAlpha(this.statsBoxTextColor, 0.15);
+    ctx.lineWidth   = d;
+    ctx.beginPath();
+    ctx.moveTo(bx + margin, sepY);
+    ctx.lineTo(bx + boxW - margin, sepY);
+    ctx.stroke();
+    ctx.restore();
+    const cy      = by + boxH - btnSz - margin;
+
+    // ── Close button (left) ──
+    const closeCx = bx + margin;
+    const closeCy = cy;
+    this._lastStatsCloseRect = { x: closeCx, y: closeCy, w: btnSz, h: btnSz };
+    ctx.save();
+    ctx.strokeStyle = this._colorWithAlpha(this.statsBoxTextColor, 0.35);
+    ctx.lineWidth   = Math.max(1, Math.round(d * 0.9));
+    ctx.lineCap     = 'round';
+    const xInset = Math.round(btnSz * 0.22);
+    ctx.beginPath();
+    ctx.moveTo(closeCx + xInset,        closeCy + xInset);
+    ctx.lineTo(closeCx + btnSz - xInset, closeCy + btnSz - xInset);
+    ctx.moveTo(closeCx + btnSz - xInset, closeCy + xInset);
+    ctx.lineTo(closeCx + xInset,        closeCy + btnSz - xInset);
+    ctx.stroke();
+    ctx.restore();
+
+    // ── Copy button (right) ──
+    const cx = bx + boxW - btnSz - margin;
+    this._lastStatsCopyRect = { x: cx, y: cy, w: btnSz, h: btnSz };
+
+    const flashing = this._statsCopyFlash > 0;
+    if (flashing) this._statsCopyFlash--;
+
+    const alpha = flashing ? 0.90 : 0.35;
+    ctx.save();
+    ctx.strokeStyle = this._colorWithAlpha(this.statsBoxTextColor, alpha);
+    ctx.fillStyle   = flashing
+      ? this._colorWithAlpha(this.statsBoxTextColor, 0.20)
+      : 'transparent';
+    ctx.lineWidth   = Math.max(1, Math.round(d * 0.8));
+    // Draw two small overlapping rectangles (classic copy icon)
+    const s  = Math.round(btnSz * 0.52);
+    const off = Math.round(btnSz * 0.22);
+    // Back page
+    ctx.beginPath();
+    ctx.rect(cx + off, cy, s, s);
+    ctx.fill(); ctx.stroke();
+    // Front page
+    ctx.fillStyle = flashing
+      ? this._colorWithAlpha(this.statsBoxTextColor, 0.25)
+      : this._colorWithAlpha(this.statsBoxBgColor, 0.85);
+    ctx.beginPath();
+    ctx.rect(cx, cy + off, s, s);
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    if (flashing) this._dirty = true;  // keep repainting until flash done
+  }
+
+  _copyStatsToClipboard(lines) {
+    const tsv = lines.map(([k, v]) => `${k}\t${v}`).join('\n');
+    navigator.clipboard?.writeText(tsv).catch(() => {});
+    this._statsCopyFlash = 6;
+    this._dirty = true;
+  }
+
+  // ─── Drag-select rectangle ────────────────────────────────────────────────
+
+  _drawDragRect(ctx) {
+    const s = this._dragStartPx, e = this._dragEndPx;
+    if (!s || !e) return;
+    const d = this._dpr;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(220,200,80,0.85)';
+    ctx.fillStyle   = 'rgba(220,200,80,0.10)';
+    ctx.lineWidth   = d;
+
+    if (this._altHeld) {
+      // Draw a parallelogram aligned with the regression line.
+      // The four corners are computed in _dragParallelogramPts() (physical px).
+      const pts = this._dragParallelogramPts();
+      if (!pts) { ctx.restore(); return; }
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      const x = Math.min(s.x, e.x) * d;
+      const y = Math.min(s.y, e.y) * d;
+      const w = Math.abs(e.x - s.x) * d;
+      const h = Math.abs(e.y - s.y) * d;
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeRect(x, y, w, h);
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Compute the four corners of the regression-aligned parallelogram in physical pixels.
+   * The drag defines two residual-parallel edges; the user's start/end X (in screen space)
+   * define the extents along the regression direction.
+   * Returns [{x,y}, {x,y}, {x,y}, {x,y}] in order TL, TR, BR, BL, or null if no regression.
+   */
+  _dragParallelogramPts() {
+    const reg = this._calibration?.regression;
+    if (!reg) return null;  // fall back to axis-aligned if no regression
+    const s = this._dragStartPx, e = this._dragEndPx;
+    if (!s || !e) return null;
+    const d    = this._dpr;
+    const rect = this._plotRect();
+
+    // Regression slope in screen space: Δscreen_y / Δscreen_x for unit Δdata_x
+    // _xToScreen and _yToScreen are linear, so the slope is constant.
+    const xSpan = this._xMax - this._xMin;
+    const ySpan = this._yMax - this._yMin;
+    // A unit step in data-x maps to rect.w/xSpan px (screen-x) and
+    // -reg.a*(rect.h/ySpan) px (screen-y, negated because y increases downward).
+    const slopeX = rect.w / xSpan;                // screen-px per data-x unit (x direction)
+    const slopeY = -reg.a * (rect.h / ySpan);     // screen-px per data-x unit (y direction)
+    const len    = Math.sqrt(slopeX * slopeX + slopeY * slopeY);
+    if (len < 1e-9) return null;
+    // Unit vector along the regression line (screen space)
+    const tx = slopeX / len;
+    const ty = slopeY / len;
+    // Unit vector perpendicular to the regression line (pointing "upward" in residual space)
+    const nx = -ty;  // rotated 90° CCW
+    const ny =  tx;
+
+    // Map drag start/end CSS pixels to physical pixels
+    const sx = s.x * d,  sy = s.y * d;
+    const ex = e.x * d,  ey = e.y * d;
+
+    // Project start and end onto the along-regression axis to get longitudinal extent
+    const projS = sx * tx + sy * ty;
+    const projE = ex * tx + ey * ty;
+
+    // Project both points onto the perpendicular axis to get residual extent
+    const perpS = sx * nx + sy * ny;
+    const perpE = ex * nx + ey * ny;
+    const perpMin = Math.min(perpS, perpE);
+    const perpMax = Math.max(perpS, perpE);
+    const lonMin  = Math.min(projS, projE);
+    const lonMax  = Math.max(projS, projE);
+
+    // Reconstruct the four corners from (lonMin/Max, perpMin/Max) in the rotated frame
+    const ptFrom = (lon, perp) => ({ x: lon * tx + perp * nx, y: lon * ty + perp * ny });
+    return [
+      ptFrom(lonMin, perpMin),  // TL
+      ptFrom(lonMax, perpMin),  // TR
+      ptFrom(lonMax, perpMax),  // BR
+      ptFrom(lonMin, perpMax),  // BL
+    ];
+  }
+
+  // ─── Hit testing ──────────────────────────────────────────────────────────
+
+  _findPointAt(cssX, cssY) {
+    const d      = this._dpr;
+    const tipR   = Math.max(this.tipRadius * d, 5 * d);
+    const thresh = tipR + 3 * d;
+    const px     = cssX * d;
+    const py     = cssY * d;
+    let best = null, bestDist = Infinity;
+    for (const p of this._renderedPts) {
+      const dx = p.px - px, dy = p.py - py;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < thresh && dist < bestDist) { best = p; bestDist = dist; }
+    }
+    return best ? best.id : null;
+  }
+
+  // ─── Events ───────────────────────────────────────────────────────────────
+
+  _setupEvents() {
+    const canvas = this._canvas;
+    let _pendingClick = false;
+
+    // ── Hover (canvas mousemove) ───────────────────────────────────────────
+    canvas.addEventListener('mousemove', e => {
+      if (this._dragActive || this._statsBoxDragActive) return;
+      const bRect = canvas.getBoundingClientRect();
+      const cssX  = e.clientX - bRect.left;
+      const cssY  = e.clientY - bRect.top;
+
+      // Stats box body takes cursor priority
+      if (this.statsBoxVisible) {
+        const d = this._dpr;
+        if (this._lastStatsCloseRect) {
+          const xr = this._lastStatsCloseRect;
+          if (cssX >= xr.x/d && cssX <= (xr.x+xr.w)/d &&
+              cssY >= xr.y/d && cssY <= (xr.y+xr.h)/d) {
+            canvas.style.cursor = 'pointer';
+            return;
+          }
+        }
+        if (this._lastStatsCopyRect) {
+          const cr = this._lastStatsCopyRect;
+          if (cssX >= cr.x/d && cssX <= (cr.x+cr.w)/d &&
+              cssY >= cr.y/d && cssY <= (cr.y+cr.h)/d) {
+            canvas.style.cursor = 'pointer';
+            return;
+          }
+        }
+        if (this._lastStatsRect) {
+          const sr = this._lastStatsRect;
+          const d2 = this._dpr;
+          if (cssX >= sr.x/d2 && cssX <= (sr.x+sr.w)/d2 &&
+              cssY >= sr.y/d2 && cssY <= (sr.y+sr.h)/d2) {
+            canvas.style.cursor = 'grab';
+            if (this._hoveredTipId !== null) {
+              this._hoveredTipId = null;
+              this._dirty = true;
+              if (this.onHoverChange) this.onHoverChange(null);
+            }
+            return;
+          }
+        }
+      }
+
+      const id = this._findPointAt(cssX, cssY);
+      if (id !== this._hoveredTipId) {
+        this._hoveredTipId      = id ?? null;
+        canvas.style.cursor     = id ? 'pointer' : 'default';
+        this._dirty = true;
+        if (this.onHoverChange) this.onHoverChange(this._hoveredTipId);
+      }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      if (this._hoveredTipId !== null) {
+        this._hoveredTipId  = null;
+        canvas.style.cursor = 'default';
+        this._dirty = true;
+        if (this.onHoverChange) this.onHoverChange(null);
+      }
+    });
+
+    // ── Stats box drag + close; drag-select (global move/up, canvas mousedown) ──
+    canvas.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      const bRect = canvas.getBoundingClientRect();
+      const cssX  = e.clientX - bRect.left;
+      const cssY  = e.clientY - bRect.top;
+
+      // Stats box interaction takes priority over scatter drag-select
+      if (this.statsBoxVisible && this._lastStatsRect) {
+        const d = this._dpr;
+        // Close button — hide the stats box
+        if (this._lastStatsCloseRect) {
+          const xr = this._lastStatsCloseRect;
+          if (cssX >= xr.x/d && cssX <= (xr.x+xr.w)/d &&
+              cssY >= xr.y/d && cssY <= (xr.y+xr.h)/d) {
+            this.statsBoxVisible = false;
+            this._dirty = true;
+            if (this.onStatsBoxVisibleChange) this.onStatsBoxVisibleChange(false);
+            e.preventDefault();
+            return;
+          }
+        }
+        // Copy button — copy lines TSV to clipboard
+        if (this._lastStatsCopyRect) {
+          const cr = this._lastStatsCopyRect;
+          if (cssX >= cr.x/d && cssX <= (cr.x+cr.w)/d &&
+              cssY >= cr.y/d && cssY <= (cr.y+cr.h)/d) {
+            // Build lines from whichever box was last drawn
+            const linesEl = this._lastStatsLines;
+            if (linesEl) this._copyStatsToClipboard(linesEl);
+            e.preventDefault();
+            return;
+          }
+        }
+        // Box body — start drag
+        const sr = this._lastStatsRect;
+        if (cssX >= sr.x/d && cssX <= (sr.x+sr.w)/d &&
+            cssY >= sr.y/d && cssY <= (sr.y+sr.h)/d) {
+          this._statsBoxDragActive = true;
+          this._statsBoxDragOffset = { x: cssX - sr.x/d, y: cssY - sr.y/d };
+          this._statsBoxDragCss    = { x: sr.x/d,        y: sr.y/d };
+          canvas.style.cursor      = 'grabbing';
+          e.preventDefault();
+          return;
+        }
+      }
+
+      this._cmdHeld     = e.metaKey || e.ctrlKey;
+      this._altHeld     = e.altKey;   // Option key on Mac → regression-aligned parallelogram
+      this._dragActive  = false;
+      this._dragStartPx = { x: cssX, y: cssY };
+      this._dragEndPx   = { ...this._dragStartPx };
+      _pendingClick     = true;
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', e => {
+      if (this._statsBoxDragActive) {
+        const bRect = canvas.getBoundingClientRect();
+        this._statsBoxDragCss = {
+          x: e.clientX - bRect.left - this._statsBoxDragOffset.x,
+          y: e.clientY - bRect.top  - this._statsBoxDragOffset.y,
+        };
+        this._dirty = true;
+        return;
+      }
+      if (!this._dragStartPx) return;
+      const bRect = canvas.getBoundingClientRect();
+      const cx    = e.clientX - bRect.left;
+      const cy    = e.clientY - bRect.top;
+      const dx    = cx - this._dragStartPx.x;
+      const dy    = cy - this._dragStartPx.y;
+      if (!this._dragActive && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+        this._dragActive = true;
+        _pendingClick    = false;
+      }
+      if (this._dragActive) {
+        this._dragEndPx = { x: cx, y: cy };
+        this._dirty = true;
+      }
+    });
+
+    window.addEventListener('mouseup', e => {
+      if (this._statsBoxDragActive) {
+        // Snap to the nearest corner of the plot area
+        if (this._lastStatsRect && this._statsBoxDragCss) {
+          const plotRect = this._plotRect();
+          const d        = this._dpr;
+          const centerX  = this._statsBoxDragCss.x + this._lastStatsRect.w / (2 * d);
+          const centerY  = this._statsBoxDragCss.y + this._lastStatsRect.h / (2 * d);
+          const midX     = (plotRect.x + plotRect.w / 2) / d;
+          const midY     = (plotRect.y + plotRect.h / 2) / d;
+          this.statsBoxCorner = (centerY < midY ? 't' : 'b') + (centerX < midX ? 'l' : 'r');
+          if (this.onStatsBoxCornerChange) this.onStatsBoxCornerChange(this.statsBoxCorner);
+        }
+        this._statsBoxDragActive = false;
+        this._statsBoxDragCss    = null;
+        this._statsBoxDragOffset = null;
+        canvas.style.cursor      = 'default';
+        this._dirty = true;
+        return;
+      }
+      if (!this._dragStartPx) return;
+      const bRect = canvas.getBoundingClientRect();
+      const cx    = e.clientX - bRect.left;
+      const cy    = e.clientY - bRect.top;
+      if (this._dragActive) {
+        this._commitDragSelect(cx, cy);
+      } else if (_pendingClick) {
+        this._handleClick(cx, cy);
+      }
+      this._dragActive  = false;
+      this._dragStartPx = null;
+      this._dragEndPx   = null;
+      _pendingClick = false;
+      this._dirty = true;
+    });
+  }
+
+  // ─── Selection helpers ────────────────────────────────────────────────────
+
+  _handleClick(cssX, cssY) {
+    const id = this._findPointAt(cssX, cssY);
+    let changed = false;
+    if (id) {
+      if (this._cmdHeld) {
+        if (this._selectedTipIds.has(id)) this._selectedTipIds.delete(id);
+        else this._selectedTipIds.add(id);
+      } else {
+        this._selectedTipIds = new Set([id]);
+      }
+      changed = true;
+    } else if (!this._cmdHeld) {
+      if (this._selectedTipIds.size > 0) {
+        this._selectedTipIds = new Set();
+        changed = true;
+      }
+    }
+    this._dirty = true;
+    if (changed && this.onSelectionChange) this.onSelectionChange(new Set(this._selectedTipIds));
+  }
+
+  _commitDragSelect(endCssX, endCssY) {
+    const s  = this._dragStartPx;
+    const d  = this._dpr;
+
+    let inside;
+    if (this._altHeld) {
+      // Regression-aligned parallelogram hit test.
+      // A point is inside if its projections onto both the along-regression axis
+      // and the perpendicular axis fall within the dragged extents.
+      const pts = this._dragParallelogramPts();
+      if (pts) {
+        const rect = this._plotRect();
+        const xSpan = this._xMax - this._xMin;
+        const ySpan = this._yMax - this._yMin;
+        const reg    = this._calibration.regression;
+        const slopeX = rect.w / xSpan;
+        const slopeY = -reg.a * (rect.h / ySpan);
+        const len    = Math.sqrt(slopeX * slopeX + slopeY * slopeY);
+        const tx = slopeX / len,  ty = slopeY / len;
+        const nx = -ty,           ny =  tx;
+
+        // Recompute the extents (same as _dragParallelogramPts but in one pass)
+        const sx = s.x * d,  sy = s.y * d;
+        const ex = endCssX * d, ey = endCssY * d;
+        const lonMin = Math.min(sx * tx + sy * ty, ex * tx + ey * ty);
+        const lonMax = Math.max(sx * tx + sy * ty, ex * tx + ey * ty);
+        const perpMin = Math.min(sx * nx + sy * ny, ex * nx + ey * ny);
+        const perpMax = Math.max(sx * nx + sy * ny, ex * nx + ey * ny);
+
+        inside = new Set();
+        for (const p of this._renderedPts) {
+          const lon  = p.px * tx + p.py * ty;
+          const perp = p.px * nx + p.py * ny;
+          if (lon >= lonMin && lon <= lonMax && perp >= perpMin && perp <= perpMax)
+            inside.add(p.id);
+        }
+      } else {
+        inside = new Set();  // no regression — nothing to select
+      }
+    } else {
+      const xA = Math.min(s.x, endCssX) * d;
+      const xB = Math.max(s.x, endCssX) * d;
+      const yA = Math.min(s.y, endCssY) * d;
+      const yB = Math.max(s.y, endCssY) * d;
+      inside = new Set();
+      for (const p of this._renderedPts) {
+        if (p.px >= xA && p.px <= xB && p.py >= yA && p.py <= yB) inside.add(p.id);
+      }
+    }
+    if (this._cmdHeld) {
+      for (const id of inside) {
+        if (this._selectedTipIds.has(id)) this._selectedTipIds.delete(id);
+        else this._selectedTipIds.add(id);
+      }
+    } else {
+      this._selectedTipIds = inside;
+    }
+    this._dirty = true;
+    if (this.onSelectionChange) this.onSelectionChange(new Set(this._selectedTipIds));
+  }
+}
