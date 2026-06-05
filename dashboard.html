@@ -247,19 +247,19 @@
 
       <div class="card">
         <div class="card-header">
+          <h2>🌳 2026 Outbreak Phylogeny</h2>
+          <span id="peartree-status" style="font-size:0.8rem;color:#666;">Loading tree from Nextstrain…</span>
+        </div>
+        <div id="bdbv-tree-2026" style="height:560px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
           <h2>📈 Genomes over time</h2>
         </div>
         <div class="card-body">
           <canvas id="genomesChart"></canvas>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2>🌳 2026 Outbreak Phylogeny</h2>
-          <span id="peartree-status" style="font-size:0.8rem;color:#666;">Loading tree from Nextstrain…</span>
-        </div>
-        <div id="bdbv-tree-2026" style="height:560px;"></div>
       </div>
 
     </div>
@@ -547,13 +547,14 @@
       const rawLoc    = na.division?.value || na.country?.value || '';
       const location  = rawLoc.replace(/Democratic Republic of the Congo/gi, 'DRC').replace(/Democratic Republic of Congo/gi, 'DRC');
       const date      = na.date?.value || '';
+      const accession = node.name || '';
       const country   = (na.country?.value  || '').replace(/"/g, '');
       const division  = (na.division?.value || '').replace(/"/g, '');
-      // Compact label: Location · MM-DD (accession visible on hover in PearTree)
-      const shortDate = date.length >= 7 ? date.slice(5) : date; // MM-DD or YYYY-MM-DD for outgroup
+      // Compact label: Location · MM-DD (accession in annotation for hover)
+      const shortDate = date.length >= 7 ? date.slice(5) : date;
       const parts = [location, shortDate].filter(Boolean);
       const label = parts.join(' · ').replace(/'/g, "''");
-      return `'${label}'[&date="${date}",country="${country}",division="${division}"]:${branchLen}`;
+      return `'${label}'[&accession="${accession}",date="${date}",country="${country}",division="${division}"]:${branchLen}`;
     }
     const children = node.children.map(c => toNewick(c, div)).join(',');
     return `(${children}):${branchLen}`;
@@ -576,7 +577,8 @@
       const nexus = `#NEXUS\nBEGIN TREES;\nTREE outbreak_2026 = [&R] ${toNewick(pruned, pruned.node_attrs?.div ?? 0)};\nEND;\n`;
       window._bdbvNexus = nexus;
       window._bdbvMeta  = data.meta;
-      const tipCount2026 = (nexus.match(/year="2026"/g) || []).length || ((nexus.match(/\[&date=/g) || []).length - 1);
+      const totalTips = (nexus.match(/\[&accession=/g) || []).length;
+      const tipCount2026 = totalTips > 1 ? totalTips - 1 : totalTips;
       document.getElementById('peartree-status').textContent =
         `${tipCount2026} outbreak genomes + 1 outgroup · live from Nextstrain (updated ${data.meta?.updated || 'recently'})`;
     } catch (err) {

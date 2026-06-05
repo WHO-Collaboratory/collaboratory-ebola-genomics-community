@@ -4,6 +4,8 @@
 
 # Landscape Analysis: BDBV Genomic Sequencing
 
+Genome sequence data can provide valuable information to support outbreak investigation, surveillance and public health response during Ebola outbreaks. Genomic surveillance can support outbreak investigation by helping assess relatedness between cases, identify transmission chains, distinguish between single and multiple zoonotic spillover events, investigate cross-border transmission, and assess potential viral persistence in individuals who have recovered from infection. Genome sequence data are also important for monitoring viral evolution and for supporting the evaluation and ongoing performance of diagnostics, therapeutics and vaccines.
+
 In an effort to help countries navigate the available wet-lab and dry-lab approaches for Bundibugyo virus (BDBV) genomics during the 2026 outbreak in DRC and Uganda, IPSN is collating a landscape analysis of current methods.
 
 We welcome updates either through pull-requests or via issues to this repository.
@@ -15,11 +17,15 @@ We welcome updates either through pull-requests or via issues to this repository
 
 ## Sequencing Approaches
 
+ Sequencing strategies should be defined according to the epidemiological context, public health objectives, laboratory capacity and available resources, with integration of genome sequence data into routine surveillance and outbreak investigation wherever feasible. The selection of sequencing approaches should be guided by the target virus, intended public health objective, specimen type, expected viral load, available infrastructure and required genomic resolution.
+
 Three broad approaches are currently in use or under evaluation for BDBV genomic sequencing. These differ in cost, coverage, required infrastructure, and suitability across sample Ct ranges.
 
 ### 1. Bait Capture Sequencing
 
-Bait capture has generated the initial genomes from this outbreak and is currently the recommended approach for samples with Ct 17–25, achieving >99% genome coverage.
+Bait capture (target capture or probe enrichment) uses probes that hybridise to the target viral genome, capturing and enriching viral nucleic acid from a sample prior to sequencing. Because enrichment is probe-driven rather than primer-driven, this approach is less susceptible to the amplification dropouts and coverage gaps that can arise from mutations at primer binding sites. It also typically provides more even genome coverage and higher sensitivity than untargeted metagenomic approaches, making it well suited to both routine surveillance and situations where genetic divergence from reference sequences is suspected.
+
+Bait capture has generated the initial genomes from this outbreak and is currently the recommended approach where capacity exists. Initial sequencing by INRB (DRC) and CPHL (Uganda) achieved >99% genome coverage from samples with Cts ranging between 17–25; this reflects the Ct values of the first batch of samples sequenced rather than an upper or lower limit of what the method can achieve.
 
 | Kit | Platform | Coverage (Ct 17–25) | Notes |
 |---|---|---|---|
@@ -28,11 +34,12 @@ Bait capture has generated the initial genomes from this outbreak and is current
 
 > ⚠️ Not all viral bait capture panels include BDBV probes. Confirm panel content before use — notably, earlier versions of some panels do not include BDBV.
 
-Bait capture data can be assembled *de novo* at high coverage using standard tools such as metaSPAdes or MEGAHIT.
 
 ---
 
 ### 2. Amplicon Sequencing
+
+Amplicon-based sequencing works by amplifying overlapping fragments of the viral genome using sets of tiled PCR primers. The resulting amplicons can then be sequenced on short- or long-read platforms. The approach is highly sensitive due to targeted amplification of viral RNA (following reverse transcription), making it suitable for samples with lower viral loads, and is valued for its multiplexing capability, cost-effectiveness and scalability in routine genomic surveillance. The main limitation is dependence on primer performance: as genetic divergence between the circulating virus and the reference genome used for primer design increases, particularly through mutations at primer binding sites, amplification of specific genomic regions can fail, resulting in coverage gaps. Shorter amplicon schemes generally offer greater sensitivity for degraded or low-quality samples, while larger amplicon schemes require higher viral loads but use fewer primer pairs.
 
 Amplicon-based approaches offer lower per-sample cost and higher throughput than bait capture, making them more scalable for routine genomic surveillance.
 
@@ -50,7 +57,8 @@ Amplicon-based approaches offer lower per-sample cost and higher throughput than
 
 ### 3. Metagenomics
 
-Metagenomics does not require prior knowledge of the pathogen sequence and may be especially useful for diagnostically ambiguous samples or for detection of co-circulating pathogens.
+Metagenomic sequencing involves the untargeted sequencing of nucleic acids directly from a sample without pathogen-specific amplification, enabling de novo genome assembly without reliance on a closely related reference sequence. Because it requires no primer design or probe development, it is inherently unbiased and resilient to mutations, deletions and genomic rearrangements in the target genome. This makes it particularly valuable for identifying genetically divergent variants, novel viruses, and for generating reference genomes during the early phases of an outbreak before targeted assays have been developed or validated. It can also serve as a cross-validation tool for amplicon-based approaches, and can help characterise co-infections or unexpected pathogens when there is diagnostic uncertainty. The primary limitation is sensitivity: high levels of host or environmental nucleic acids typically require samples with high viral loads (Ct &lt;20) to yield sufficient viral reads for complete genome recovery, and metagenomic approaches are generally not cost-effective for large-scale routine surveillance where targeted methods are more practical.
+
 
 | Protocol | Recommended Ct | Platform | Notes |
 |---|---|---|---|
@@ -62,49 +70,50 @@ Metagenomics does not require prior knowledge of the pathogen sequence and may b
 
 ## Bioinformatic Workflows for Consensus Generation
 
-### Bait Capture
+Generating a BDBV consensus sequence requires multiple bioinformatic steps including host read removal, quality trimming, primer trimming (for amplicon data), mapping to a reference genome, and variant calling. End-to-end pipelines that integrate these steps are listed below, grouped by sequencing approach. Pipelines typically use a workflow management system (Nextflow or WDL) and containerisation (Docker or Singularity) to enable reproducible deployment across different environments.
 
-| Pipeline | Platform | Workflow | Notes |
-|---|---|---|---|
-| [nf-core/viralrecon](https://github.com/nf-core/viralrecon) | Illumina | Nextflow | Used successfully by INRB for Twist panel data; Docker/Singularity containerised |
-| metaSPAdes / MEGAHIT | Illumina | Stand-alone | For de novo assembly at high coverage |
+| **Pipeline**                                                              | **Approach** | **Platform**   | **Workflow** | **Containerised**    | **Host removal** | **Trimming**      | **Primer removal** | **Mapping**    | **Variant calling**        | **Used in 2026 outbreak**                  |
+| ------------------------------------------------------------------------- | ------------ | -------------- | ------------ | -------------------- | ---------------- | ----------------- | ------------------ | -------------- | -------------------------- | ------------------------------------------ |
+| [nf-core/viralrecon](https://github.com/nf-core/viralrecon)               | Bait capture | Illumina       | Nextflow     | Docker / Singularity | Kraken2          | fastp             | —                  | bowtie2        | ivar / samtools / bcftools | ✅ INRB (DRC) — Twist panel data            |
+| [artic-network/amplicon-nf](https://github.com/artic-network/amplicon-nf) | Amplicon     | Illumina / ONT | Nextflow     | Docker / Singularity | Hostile          | fastp / guppyplex | ivar / artic       | bwa / minimap2 | ivar / medaka              | Recommended — validation underway at INRB  |
 
-### Amplicon Sequencing
-
-| Pipeline | Platform | Workflow | Containerised | Notes |
-|---|---|---|---|---|
-| [artic-network/amplicon-nf](https://github.com/artic-network/amplicon-nf) | Illumina / ONT | Nextflow | Docker / Singularity | Recommended by ARTIC for both platforms; tutorials available on [ARTIC website](https://artic.network/resources/amplicon-nf) and [GitHub](https://github.com/artic-network/amplicon-nf/tree/main/docs) |
-
-> Use a BDBV 2026 epidemic reference strain as the mapping reference for variant calling. Refer to the [ARTIC website](https://artic.network) for the recommended reference.
+Tutorials for `amplicon-nf` are available on the [ARTIC website](https://artic.network/resources/amplicon-nf) and [GitHub](https://github.com/artic-network/amplicon-nf/tree/main/docs).
 
 ---
 
 ## Phylogenetic Analysis
 
-Standard phylogenetic approaches work well for BDBV. The number of genomes is expected to remain within the practical limits of desktop tools for the near future.
+The comparison of viral sequences and reconstruction of phylogenetic relationships can support identification of zoonotic spillover events, characterisation of human-to-human transmission dynamics, and detection of emerging variants. For the 2026 BDBV outbreak, early phylogenetic analysis has already indicated a single new spillover event and provided initial estimates of the time to most recent common ancestor (tMRCA). These insights can refine understanding of outbreak epidemiology and inform public health action.
+
+Careful consideration is needed when interpreting sequence relatedness. Genetic proximity between sequences may be consistent with, but cannot be used as evidence for, direct transmission. Phylogenetic results must always be interpreted alongside epidemiological data such as timing, location and contact history. Current limitations include the small number of genomes available and significant geographic bias.
+
+**Alignment strategy.** All Bundibugyo outbreak analyses have used MAFFT-based whole-genome multiple sequence alignment via the RACCOON pipeline, including sequences from the 2007 and 2012 BDBV outbreaks alongside 2026 genomes to provide phylogenetic context. Trees are rooted on the BDBV reference genome [NC_014373](https://www.ncbi.nlm.nih.gov/nuccore/NC_014373)
+
+**Masking.** ADAR-driven hypermutation (T→C transitions in intergenic regions) has been observed in initial 2026 genomes and should be masked prior to phylogenetic inference to avoid spurious branch lengths.
+
+**Temporal inference.** Because BDBV has a limited number of genomes and a narrow temporal range of sampling, time-calibrated analyses currently require a fixed substitution rate. Initial analyses have used rates of 1.2–1.9 × 10⁻³ substitutions/site/year, based on prior estimates from the 2014–2016 EBOV epidemic; the resulting tMRCA range should be interpreted accordingly.
 
 ### Recommended Workflow
 
-| Step | Tool | Notes |
-|---|---|---|
-| Multiple sequence alignment | [MAFFT](https://mafft.cbrc.jp/alignment/software/) | Standard approach; well suited to current genome numbers |
-| ML phylogeny | [IQ-TREE2](https://iqtree.github.io) | HKY+gamma model used in initial outbreak analysis; ultrafast bootstrap supported |
-| Integrated QC + phylogeny | [raccoon](https://github.com/artic-network/raccoon) / [raccoon-nf](https://github.com/artic-network/raccoon-nf) | Combines alignment, QC, and HTML report generation; runs within ONT EPI2ME (no command-line needed); tutorial at [artic.network](https://artic.network/tutorials/raccoon-nf.html) |
-| Tree visualisation | [PearTree](https://peartree.live) | Desktop app or zero-install web app; used in Virological outbreak reports |
-| Temporal / phylodynamic | [TreeTime](https://github.com/neherlab/treetime) | Powers Nextstrain BDBV updates; estimates tMRCA |
-| Comprehensive phylodynamics | [BEAST v10.5](http://beast.community) | Estimates tMRCA, epidemic growth rate, spatial spread; used in initial BDBV outbreak analysis |
+| Step                        | Tool                                                                                                            | Notes                                                                                                             |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Multiple sequence alignment | [MAFFT](https://mafft.cbrc.jp/alignment/software/)                                                              | Standard approach for cross-clade or across-outbreak comparisons                                                  |
+| ML phylogeny                | [IQ-TREE2](https://iqtree.github.io)                                                                            | HKY+gamma model used in initial 2026 outbreak analysis; ultrafast bootstrap supported                             |
+| Integrated QC + alignemnt   | [raccoon](https://github.com/artic-network/raccoon) / [raccoon-nf](https://github.com/artic-network/raccoon-nf) | Combines alignment, masking, QC and HTML reports; runs within ONT EPI2ME without command-line experience          |
+| Comprehensive phylodynamics | [BEAST v10.5](http://beast.community)                                                                           | Bayesian inference of tMRCA, epidemic growth rate and spatial spread; used in initial 2026 BDBV outbreak analysis |
+| Live phylogeny              | [Nextstrain BDBV](https://nextstrain.org/ebola/bdbv)                                                            | Continuously updated phylogeny integrating Pathoplexus sequences                                                  |
 
 ## Data Sharing
+
+WHO strongly encourages countries and laboratories to share genome sequence data and associated metadata, and where appropriate and feasible, raw sequence data, through publicly accessible databases in a timely manner to support global surveillance and risk assessment.
 
 All BDBV genomes from the 2026 outbreak are being deposited in [Pathoplexus](https://pathoplexus.org/), which now supports BDBV sequences.
 
 
 ## Genome Quality Considerations
 
-The following quality issues have been identified in initial BDBV genomes from the 2026 outbreak and should be considered during analysis:
+The ability to recover complete or near-complete viral genomes is influenced by specimen type, specimen quality, viral load, sequencing methodology and bioinformatic workflows. In general, samples with lower Ct values are more likely to yield high-quality genome coverage, whereas samples with higher Ct values may result in partial genome recovery or reduced sequencing sensitivity. Sequencing results should therefore be interpreted in conjunction with assay performance characteristics, epidemiological information and associated metadata.
 
-- **ADAR editing events** — tracts of T→C mutations within short spans (e.g., positions 4165–4191 in one genome) in intergenic regions; affected positions should be masked. This phenomenon has been observed in previous Ebolavirus outbreaks.
-- **Geographic bias** — current genomes are predominantly from Bunia; tMRCA and other phylodynamic estimates should be interpreted with caution until genomes from the wider epidemic area are available.
 
 ---
 
