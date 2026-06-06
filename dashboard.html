@@ -212,7 +212,7 @@
 
 <header>
   <div class="header-top">
-    <a href="https://www.who.int/initiatives/international-pathogen-surveillance-network" target="_blank">WHO · International Pathogen Surveillance Network (IPSN)</a>
+    <a href="https://www.who.int/initiatives/international-pathogen-surveillance-network" target="_blank">International Pathogen Surveillance Network (IPSN)</a>
     · Community of Practice on Specialized Surveillance for Emergency Response
   </div>
   <div class="header-body">
@@ -220,7 +220,7 @@
     <div class="header-divider"></div>
     <div class="header-text">
       <h1>BDBV Genomics Community Dashboard <span class="badge">Live</span></h1>
-      <p>2026 Bundibugyo Virus Disease Outbreak · DRC &amp; Uganda</p>
+      <p>2026 Bundibugyo Virus Disease Outbreak</p>
     </div>
   </div>
 </header>
@@ -269,9 +269,17 @@
 </main>
 
 <footer>
-  <p>Data shared under <a href="https://pathoplexus.org/about/terms-of-use/data-use-terms" target="_blank">Pathoplexus Restricted Use terms</a> ·
-  Sequences from INRB (DRC), CPHL (Uganda), Charité Berlin ·
-  Dashboard maintained by <a href="https://www.who.int/initiatives/international-pathogen-surveillance-network" target="_blank">IPSN</a> ·
+  <p style="margin-bottom:6px;">
+    <strong>Acknowledgements:</strong>
+    Genomic data generated and shared by
+    <a href="https://inrb.net/" target="_blank">Institut National de Recherche Biomédicale (INRB)</a>, DRC ·
+    <a href="https://www.health.go.ug/cphl/" target="_blank">Central Public Health Laboratories (CPHL)</a>, Uganda ·
+    <a href="https://virologie-ccm.charite.de/" target="_blank">Charité Universitätsmedizin Berlin</a>, Germany.
+    Phylogenetics infrastructure by <a href="https://artic.network" target="_blank">ARTIC Network</a> and <a href="https://nextstrain.org" target="_blank">Nextstrain</a>.
+    Data deposited via <a href="https://pathoplexus.org" target="_blank">Pathoplexus</a> under <a href="https://pathoplexus.org/about/terms-of-use/data-use-terms" target="_blank">Restricted Use terms</a>.
+    Full author list: <a href="https://virological.org/t/initial-genomes-from-may-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo-and-uganda/1032" target="_blank">Virological.org</a>.
+  </p>
+  <p>Dashboard maintained by <a href="https://www.who.int/initiatives/international-pathogen-surveillance-network" target="_blank">IPSN</a> ·
   <a href="https://github.com/WHO-Collaboratory/collaboratory-ebola-genomics-community">Community repo</a> ·
   <a href="https://github.com/WHO-Collaboratory/collaboratory-ebola-genomics-community/blob/main/landscape.md">Landscape analysis</a></p>
 </footer>
@@ -364,16 +372,16 @@
     // Fill every calendar day between min and max
     const labels = [], daily = [], cumulative = [];
     let running = 0;
-    const cur = new Date(dates[0] + "T00:00:00");
-    const end = new Date(dates[dates.length - 1] + "T00:00:00");
+    const cur = new Date(dates[0] + "T00:00:00Z");
+    const end = new Date(dates[dates.length - 1] + "T00:00:00Z");
     while (cur <= end) {
       const iso = cur.toISOString().slice(0, 10);
       const n = counts[iso] || 0;
       running += n;
-      labels.push(cur.toLocaleDateString("en-GB", { day: "numeric", month: "short" }));
+      labels.push(new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }));
       daily.push(n);
       cumulative.push(running);
-      cur.setDate(cur.getDate() + 1);
+      cur.setUTCDate(cur.getUTCDate() + 1);
     }
     return { labels, daily, cumulative, missing, included };
   }
@@ -391,8 +399,9 @@
     const sortedDates = Array.from(allDates).sort();
     if (!sortedDates.length) return;
 
-    const minDate = new Date(sortedDates[0] + "T00:00:00");
-    const maxDate = new Date(sortedDates[sortedDates.length - 1] + "T00:00:00");
+    // Use UTC throughout to avoid timezone-shift date mismatches
+    const minDate = new Date(sortedDates[0] + "T00:00:00Z");
+    const maxDate = new Date(sortedDates[sortedDates.length - 1] + "T00:00:00Z");
 
     // Build a unified label array spanning both ranges
     const labels = [], colData = [], relData = [];
@@ -405,13 +414,13 @@
     let colRunning = 0, relRunning = 0;
     const cur = new Date(minDate);
     while (cur <= maxDate) {
-      const iso = cur.toISOString().slice(0, 10);
+      const iso = cur.toISOString().slice(0, 10); // UTC date string YYYY-MM-DD
       colRunning += colCounts[iso] || 0;
       relRunning += relCounts[iso] || 0;
-      labels.push(cur.toLocaleDateString("en-GB", { day: "numeric", month: "short" }));
+      labels.push(new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }));
       colData.push(colRunning);
       relData.push(relRunning);
-      cur.setDate(cur.getDate() + 1);
+      cur.setUTCDate(cur.getUTCDate() + 1);
     }
 
     const colNote = col.missing > 0 ? ` (${col.included}/${allSequences.length} dated)` : "";
@@ -487,7 +496,7 @@
         location: s.geoLocAdmin1 || s.geoLocCity || "—",
         lab:      s.sequencedByOrganization || s.groupName || "—",
         terms:    s.dataUseTerms               || "—",
-        released: s.releasedDate               || "—",
+        released: s.releasedDate || s.submittedDate || "—",
       })).sort((a, b) => b.released.localeCompare(a.released));
       if (seqs.length > 0) {
         allSequences = seqs;
@@ -547,12 +556,12 @@
       const rawLoc    = na.division?.value || na.country?.value || '';
       const location  = rawLoc.replace(/Democratic Republic of the Congo/gi, 'DRC').replace(/Democratic Republic of Congo/gi, 'DRC');
       const date      = na.date?.value || '';
-      const accession = node.name || '';
+      const accession = na.accession || node.name || '';
       const country   = (na.country?.value  || '').replace(/"/g, '');
       const division  = (na.division?.value || '').replace(/"/g, '');
-      // Compact label: Location · MM-DD (accession in annotation for hover)
-      const shortDate = date.length >= 7 ? date.slice(5) : date;
-      const parts = [location, shortDate].filter(Boolean);
+      // Label: accession · Location · MM-DD (or just year for partial/unknown dates)
+      const shortDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(5) : date.slice(0, 4);
+      const parts = [accession, location, shortDate].filter(Boolean);
       const label = parts.join(' · ').replace(/'/g, "''");
       return `'${label}'[&accession="${accession}",date="${date}",country="${country}",division="${division}"]:${branchLen}`;
     }
@@ -617,8 +626,10 @@
         height:    '560px',
         settings: {
           tipLabelShow:      'names',
-          tipLabelAlign:     'dashed',
-          tipLabelFontSize:  '11',
+          tipLabelAlign:     'off',
+          tipLabelFontSize:  '10',
+          tipLabelSpacing:   '4',
+          paddingRight:      '220',
           axisShow:          'forward',
           axisMajorInterval: 'auto',
         },
