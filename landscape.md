@@ -4,7 +4,7 @@
 
 # Landscape Analysis: BDBV Genomic Sequencing
 
-Genome sequence data can provide valuable information to support outbreak investigation, surveillance and public health response during Ebola outbreaks. Genomic surveillance can support outbreak investigation by helping assess relatedness between cases, identify transmission chains, distinguish between single and multiple zoonotic spillover events, investigate cross-border transmission, and assess potential viral persistence in individuals who have recovered from infection. Genome sequence data are also important for monitoring viral evolution and for supporting the evaluation and ongoing performance of diagnostics, therapeutics and vaccines.
+Genome sequence data can provide valuable information to support surveillance and public health response during Ebola outbreaks. Genomic surveillance can support outbreak investigation by helping assess relatedness between cases, identify possible transmission chains, distinguish between single and multiple zoonotic spillover events, investigate cross-border transmission, and assess potential viral persistence in individuals who have recovered from infection. Genome sequence data are also important for monitoring viral evolution and for supporting the evaluation and ongoing performance of diagnostics, therapeutics and vaccines.
 
 In an effort to help countries navigate the available wet-lab and dry-lab approaches for Bundibugyo virus (BDBV) genomics during the 2026 outbreak in DRC and Uganda, IPSN is collating a landscape analysis of current methods.
 
@@ -25,7 +25,7 @@ Three broad approaches are currently in use or under evaluation for BDBV genomic
 
 Bait capture (target capture or probe enrichment) uses probes that hybridise to the target viral genome, capturing and enriching viral nucleic acid from a sample prior to sequencing. Because enrichment is probe-driven rather than primer-driven, this approach is less susceptible to the amplification dropouts and coverage gaps that can arise from mutations at primer binding sites. It also typically provides more even genome coverage and higher sensitivity than untargeted metagenomic approaches, making it well suited to both routine surveillance and situations where genetic divergence from reference sequences is suspected.
 
-Bait capture has generated the initial genomes from this outbreak and is currently the recommended approach where capacity exists. Initial sequencing by INRB (DRC) and CPHL (Uganda) achieved >99% genome coverage from samples with Cts ranging between 17–25; this reflects the Ct values of the first batch of samples sequenced rather than an upper or lower limit of what the method can achieve.
+Bait capture has generated the initial genomes from this outbreak and appears a robust approach. Initial sequencing by INRB (DRC) and CPHL (Uganda) achieved >99% genome coverage from samples with Cts ranging between 17–25; this reflects the Ct values of the first batch of samples sequenced rather than an upper or lower limit of what the method can achieve.
 
 | Kit | Platform | Coverage (Ct 17–25) | Notes |
 |---|---|---|---|
@@ -45,11 +45,10 @@ Amplicon-based approaches offer lower per-sample cost and higher throughput than
 
 #### Primer Schemes
 
-| Primer Scheme                                                                                    | Amplicon Size (bp) | Reference            | BDBV 2026 Coverage                 | Platform       | Availability                                        | Notes                                                                                                       |
-| ------------------------------------------------------------------------------------------------ | ------------------ | -------------------- | ---------------------------------- | -------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [artic-bdbv-2026/400/v1.0.0](https://labs.primalscheme.com/detail/artic-bdbv-2026/400/v1.0.0/)   | 400                | 2026 epidemic strain | Expected high (pending validation) | Illumina / ONT | Free on request from Artic                          | Designed specifically for 2026 epidemic strain; validation underway at INRB; **recommended once available** |
-| [artic-pan-ebola/1000/v2.0.0](https://labs.primalscheme.com/detail/artic-pan-ebola/1000/v1.0.0/) | 1000               | Pan-Ebolavirus       | TBC                                | Illumina / ONT | Free on request from Artic                          | Updated pan-Ebola scheme; broader coverage than v1                                                          |
-| [artic-pan-ebola/1000/v1.0.0](https://labs.primalscheme.com/detail/artic-pan-ebola/1000/v1.0.0/) | 1000               | Pan-Ebolavirus       | ~50–70%                            | Illumina / ONT | [Primal Scheme Labs](https://labs.primalscheme.com) | Tested in DRC and Bernard Nocht; insufficient for routine genomic epidemiology at this coverage             |
+| Primer Scheme                                                                                    | Amplicon Size (bp) | Reference            | BDBV 2026 Coverage                 | Platform       | Availability                                        | Notes                                                                                                                          |
+| ------------------------------------------------------------------------------------------------ | ------------------ | -------------------- | ---------------------------------- | -------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| [artic-bdbv-2026/400/v1.0.0](https://labs.primalscheme.com/detail/artic-bdbv-2026/400/v1.0.0/)   | 400                | 2026 epidemic strain | Expected high (pending validation) | Illumina / ONT | [Primal Scheme Labs](https://labs.primalscheme.com) | Designed specifically for 2026 epidemic strain; validation underway at INRB;                                                   |
+| [artic-pan-ebola/1000/v1.0.0](https://labs.primalscheme.com/detail/artic-pan-ebola/1000/v1.0.0/) | 1000               | Pan-Ebolavirus       | ~50–70%                            | Illumina / ONT | [Primal Scheme Labs](https://labs.primalscheme.com) | Tested in DRC and Bernard Nocht; **Insufficient for routine genomic epidemiology at this coverage - v2.0.0 under development** |
 
 > The BDBV-specific scheme (artic-bdbv-2026/400/v1.0.0) is expected to generate the best results across a broad range of sample Ct values and viral titres. Schemes can be requested directly from ARTIC at no cost including shipping via the [ARTIC Primer Foundry](https://artic.network).
 
@@ -60,8 +59,10 @@ Amplicon-based approaches offer lower per-sample cost and higher throughput than
 Metagenomic sequencing involves the untargeted sequencing of nucleic acids directly from a sample without pathogen-specific amplification, enabling de novo genome assembly without reliance on a closely related reference sequence. Because it requires no primer design or probe development, it is inherently unbiased and resilient to mutations, deletions and genomic rearrangements in the target genome. This makes it particularly valuable for identifying genetically divergent variants, novel viruses, and for generating reference genomes during the early phases of an outbreak before targeted assays have been developed or validated. It can also serve as a cross-validation tool for amplicon-based approaches, and can help characterise co-infections or unexpected pathogens when there is diagnostic uncertainty. The primary limitation is sensitivity: high levels of host or environmental nucleic acids typically require samples with high viral loads (Ct &lt;20) to yield sufficient viral reads for complete genome recovery, and metagenomic approaches are generally not cost-effective for large-scale routine surveillance where targeted methods are more practical.
 
 
-| Protocol | Recommended Ct | Platform | Notes |
-|---|---|---|---|
+#### Viral metagenomics protocols
+
+| Protocol                                                                                                     | Recommended Ct                             | Platform       | Notes                                                                         |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------ | -------------- | ----------------------------------------------------------------------------- |
 | [SMART-9N](https://www.protocols.io/view/viral-metagenomics-using-smart-9n-amplification-an-j8nlke5wwl5r/v1) | <20 (genomes may be recovered up to Ct 30) | Illumina / ONT | SISPA-based; optimised for viral RNA; primers available on request from ARTIC |
 
 > Metagenomics is particularly valuable when there is diagnostic uncertainty about the causative agent, or when new strains of Ebolavirus or other haemorrhagic fevers may be co-circulating.

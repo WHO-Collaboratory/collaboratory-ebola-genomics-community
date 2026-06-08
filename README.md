@@ -14,7 +14,7 @@ The community aims to
 - Support the integration of sequence data into epidemiological and contextual information as reported by countries. 
 - Build consensus on standards for genomic data and linked metadata to be uploaded to pathogen genomic data sharing platforms
 
-If you are interested in joining these community of practice please contact the [IPSN Secretariat](mailto:ipsn-secretariat@who.int)
+For me information please contact the [IPSN Secretariat](mailto:ipsn-secretariat@who.int)
 
 ---
 
