@@ -136,6 +136,7 @@
     #seq-count-label { font-size: 0.8rem; color: #666; margin-bottom: 16px; }
 
     /* Scope table styles under #seq-table-container to beat Bootstrap specificity */
+    #seq-table-container { overflow-x: auto; }
     #seq-table-container table {
       width: 100% !important;
       border-collapse: collapse !important;
@@ -287,23 +288,26 @@
 <script>
   // Known sequences from the 2026 outbreak (from Virological post 2026-05-28)
   // This is used as a fallback if the Pathoplexus API is unavailable.
+  // Static fallback — used only if the LAPIS API is unavailable.
+  // firstReleased is unknown without querying versionStatus=ALL, so it mirrors released.
   const knownSequences = [
-    { id: "PP_006Y8NC", sample: "26FHV061", date: "2026-05-06", country: "DRC",     location: "Bunia" },
-    { id: "PP_006Y8PA", sample: "26FHV062", date: "2026-05-06", country: "DRC",     location: "Bunia" },
-    { id: "PP_006Y8Q8", sample: "26FHV063", date: "2026-05-06", country: "DRC",     location: "Bunia" },
-    { id: "PP_006Y8ME", sample: "26FHV058", date: "2026-05-06", country: "DRC",     location: "Katwa" },
-    { id: "PP_006Y8R6", sample: "26FHV064", date: "2026-05-16", country: "DRC",     location: "Bunia" },
-    { id: "PP_006Y8S4", sample: "26FHV065", date: "2026-05-16", country: "DRC",     location: "Bunia" },
-    { id: "PP_006XCJJ", sample: "n/a",      date: "2026-05-14", country: "Uganda",  location: "ex-Bunia" },
-    { id: "PP_006XHKB", sample: "26FHV045", date: "2026-05-03", country: "DRC",     location: "Bunia" },
-    { id: "PP_006XHL9", sample: "26FHV054", date: "2026-05-07", country: "DRC",     location: "Bunia" },
-    { id: "PP_006XXY5", sample: "n/a",      date: "2026-05-20", country: "Germany", location: "ex-DRC/ex-Bunia" },
-    { id: "PP_00711R7", sample: "26FHV046", date: "2026-05-03", country: "DRC",     location: "Hoho" },
-    { id: "PP_00711S5", sample: "26FHV047", date: "2026-05-03", country: "DRC",     location: "Hoho" },
-    { id: "PP_00711T3", sample: "26FHV051", date: "2026-05-03", country: "DRC",     location: "Lumumba" },
-    { id: "PP_00711U1", sample: "26FHV053", date: "2026-05-03", country: "DRC",     location: "Hoho" },
-    { id: "PP_00711VZ", sample: "26FHV056", date: "2026-05-03", country: "DRC",     location: "Hoho" },
-  ];
+    { id: "PP_006XCJJ",  sample: "CL023114",  date: "2026-05-14", country: "Uganda",                           location: "Uganda",  lab: "CPHL",              terms: "RESTRICTED", released: "2026-05-17" },
+    { id: "PP_006XHKB",  sample: "26FHV045",  date: "2026-05-03", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-05-19" },
+    { id: "PP_006XHL9",  sample: "26FHV054",  date: "2026-05-07", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_006XXY5",  sample: "n/a",       date: "2026-05-20", country: "Democratic Republic of the Congo", location: "—",       lab: "Charité Virologie", terms: "RESTRICTED", released: "2026-05-21" },
+    { id: "PP_006Y8ME",  sample: "26FHV058",  date: "2026-05-06", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_006Y8NC",  sample: "26FHV061",  date: "2026-05-15", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_006Y8PA",  sample: "26FHV062",  date: "2026-05-15", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_006Y8Q8",  sample: "26FHV063",  date: "2026-05-15", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_006Y8R6",  sample: "26FHV064",  date: "2026-05-16", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_006Y8S4",  sample: "26FHV065",  date: "2026-05-16", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_00711R7",  sample: "26FHV046",  date: "2026-05-03", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_00711S5",  sample: "26FHV047",  date: "2026-05-03", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_00711T3",  sample: "26FHV051",  date: "2026-05-03", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_00711U1",  sample: "26FHV053",  date: "2026-05-03", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_00711VZ",  sample: "26FHV056",  date: "2026-05-03", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+    { id: "PP_00712Q8",  sample: "26FHV044",  date: "2026-05-03", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
+  ].map(s => ({ ...s, firstReleased: s.released }));
 
   const countryTag = {
     "Democratic Republic of the Congo": '<span class="tag tag-drc">DRC</span>',
@@ -336,7 +340,7 @@
         <td>${countryTag[s.country] || s.country}</td>
         <td>${s.location}</td>
         <td>${s.lab}</td>
-        <td>${s.released}</td>
+        <td>${s.firstReleased}</td>
         <td>${termsTag(s.terms || "—")}</td>
       </tr>
     `).join("");
@@ -344,7 +348,7 @@
     container.innerHTML = `
       <table>
         <thead><tr>
-          <th>Accession</th><th>Sample ID</th><th>Collection date</th><th>Country</th><th>Location</th><th>Submitting group</th><th>Released ↓</th><th>Data use</th>
+          <th>Accession</th><th>Sample ID</th><th>Collection date</th><th>Country</th><th>Location</th><th>Submitting group</th><th>First uploaded ↓</th><th>Data use</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -389,12 +393,12 @@
   function renderCharts() {
     // Build both series — union of all dates across both fields
     const col = buildTimeSeries(allSequences, "date");
-    const rel = buildTimeSeries(allSequences, "released");
+    const rel = buildTimeSeries(allSequences, "firstReleased");
 
     // Merge labels: take the wider date range of the two
     const allDates = new Set([
       ...(allSequences.map(s => s.date).filter(d => d && d !== "—")),
-      ...(allSequences.map(s => s.released).filter(d => d && d !== "—")),
+      ...(allSequences.map(s => s.firstReleased).filter(d => d && d !== "—")),
     ]);
     const sortedDates = Array.from(allDates).sort();
     if (!sortedDates.length) return;
@@ -407,8 +411,8 @@
     const labels = [], colData = [], relData = [];
     const colCounts = {}, relCounts = {};
     allSequences.forEach(s => {
-      if (s.date     && s.date     !== "—") colCounts[s.date]     = (colCounts[s.date]     || 0) + 1;
-      if (s.released && s.released !== "—") relCounts[s.released] = (relCounts[s.released] || 0) + 1;
+      if (s.date          && s.date          !== "—") colCounts[s.date]          = (colCounts[s.date]          || 0) + 1;
+      if (s.firstReleased && s.firstReleased !== "—") relCounts[s.firstReleased] = (relCounts[s.firstReleased] || 0) + 1;
     });
 
     let colRunning = 0, relRunning = 0;
@@ -444,7 +448,7 @@
             tension: 0.3,
           },
           {
-            label: "By upload date" + relNote,
+            label: "By first upload date" + relNote,
             data: relData,
             borderColor: "#2a9d8f",
             backgroundColor: "rgba(42,157,143,0.08)",
@@ -482,22 +486,31 @@
   async function loadSequences() {
     // Try LAPIS API — filter to 2026 outbreak only, public/no auth required
     try {
-      const resp = await fetch(
-        `${LAPIS}/sample/details?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION&limit=500&dataFormat=JSON`,
-        { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) }
-      );
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+      // Two parallel fetches: latest version for metadata, version=1 for first upload dates
+      const [latestResp, v1Resp] = await Promise.all([
+        fetch(`${LAPIS}/sample/details?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION&limit=500&dataFormat=JSON`,
+          { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) }),
+        fetch(`${LAPIS}/sample/details?outbreak=Bdbv-2026&version=1&dataFormat=JSON&fields=accession,releasedDate`,
+          { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) }),
+      ]);
+      if (!latestResp.ok) throw new Error(`HTTP ${latestResp.status}`);
+      const [data, v1Data] = await Promise.all([latestResp.json(), v1Resp.json()]);
+
+      // Build lookup: accession → first-version releasedDate
+      const firstReleasedMap = {};
+      (v1Data.data || []).forEach(s => { firstReleasedMap[s.accession] = s.releasedDate; });
+
       const seqs = (data.data || []).map(s => ({
-        id:       s.accession                  || "—",
-        sample:   s.specimenCollectorSampleId  || "n/a",
-        date:     s.sampleCollectionDate       || "—",
-        country:  s.geoLocCountry              || "—",
-        location: s.geoLocAdmin1 || s.geoLocCity || "—",
-        lab:      s.sequencedByOrganization || s.groupName || "—",
-        terms:    s.dataUseTerms               || "—",
-        released: s.releasedDate || s.submittedDate || "—",
-      })).sort((a, b) => b.released.localeCompare(a.released));
+        id:            s.accession                              || "—",
+        sample:        s.specimenCollectorSampleId              || "n/a",
+        date:          s.sampleCollectionDate                   || "—",
+        country:       s.geoLocCountry                          || "—",
+        location:      s.geoLocAdmin1 || s.geoLocCity           || "—",
+        lab:           s.sequencedByOrganization || s.groupName  || "—",
+        terms:         s.dataUseTerms                           || "—",
+        released:      s.releasedDate || s.submittedDate        || "—",
+        firstReleased: firstReleasedMap[s.accession] || s.releasedDate || s.submittedDate || "—",
+      })).sort((a, b) => b.firstReleased.localeCompare(a.firstReleased));
       if (seqs.length > 0) {
         allSequences = seqs;
         renderTable(seqs, `Live data from <a href="${LAPIS}/swagger-ui/index.html" target="_blank">LAPIS / Pathoplexus</a>`);
@@ -509,8 +522,8 @@
     }
 
     // Fallback: hardcoded sequences from Virological post (2026-05-28)
-    allSequences = knownSequences;
-    renderTable(knownSequences, "Static data from Virological post (2026-05-28) — LAPIS API unavailable");
+    allSequences = [...knownSequences].sort((a, b) => b.firstReleased.localeCompare(a.firstReleased));
+    renderTable(allSequences, "Static data from Virological post (2026-05-28) — LAPIS API unavailable");
     try { renderCharts(); } catch(e) { console.warn("Chart error:", e); }
   }
 

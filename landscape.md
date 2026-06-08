@@ -19,6 +19,8 @@ We welcome updates either through pull-requests or via issues to this repository
 
  Sequencing strategies should be defined according to the epidemiological context, public health objectives, laboratory capacity and available resources, with integration of genome sequence data into routine surveillance and outbreak investigation wherever feasible. The selection of sequencing approaches should be guided by the target virus, intended public health objective, specimen type, expected viral load, available infrastructure and required genomic resolution.
 
+The ability to recover complete or near-complete viral genomes is influenced by specimen type, specimen quality, viral load, sequencing methodology and bioinformatic workflows. In general, samples with lower Ct values are more likely to yield high-quality genome coverage, whereas samples with higher Ct values may result in partial genome recovery or reduced sequencing sensitivity. 
+
 Three broad approaches are currently in use or under evaluation for BDBV genomic sequencing. These differ in cost, coverage, required infrastructure, and suitability across sample Ct ranges.
 
 ### 1. Bait Capture Sequencing
@@ -82,33 +84,17 @@ The comparison of viral sequences and reconstruction of phylogenetic relationshi
 
 Careful consideration is needed when interpreting sequence relatedness. Genetic proximity between sequences may be consistent with, but cannot be used as evidence for, direct transmission. Phylogenetic results must always be interpreted alongside epidemiological data such as timing, location and contact history. Current limitations include the small number of genomes available and significant geographic bias.
 
-**Alignment strategy.** All Bundibugyo outbreak analyses have used MAFFT-based whole-genome multiple sequence alignment via the RACCOON pipeline, including sequences from the 2007 and 2012 BDBV outbreaks alongside 2026 genomes to provide phylogenetic context. Trees are rooted on the BDBV reference genome [NC_014373](https://www.ncbi.nlm.nih.gov/nuccore/NC_014373)
+**Alignment strategy.** All Bundibugyo outbreak analyses have used [MAFFT](https://mafft.cbrc.jp/alignment/software/) -based whole-genome multiple sequence alignment via the [raccoon](https://github.com/artic-network/raccoon) / [raccoon-nf](https://github.com/artic-network/raccoon-nf) pipeline
 
-**Masking.** ADAR-driven hypermutation (T→C transitions in intergenic regions) has been observed in initial 2026 genomes and should be masked prior to phylogenetic inference to avoid spurious branch lengths.
+**Masking.** ADAR-driven hypermutation (T→C transitions in intergenic regions) has been observed in initial 2026 genomes and may need to be masked prior to phylogenetic inference to avoid spurious branch lengths.
 
 **Temporal inference.** Because BDBV has a limited number of genomes and a narrow temporal range of sampling, time-calibrated analyses currently require a fixed substitution rate. Initial analyses have used rates of 1.2–1.9 × 10⁻³ substitutions/site/year, based on prior estimates from the 2014–2016 EBOV epidemic; the resulting tMRCA range should be interpreted accordingly.
-
-### Recommended Workflow
-
-| Step                        | Tool                                                                                                            | Notes                                                                                                             |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Multiple sequence alignment | [MAFFT](https://mafft.cbrc.jp/alignment/software/)                                                              | Standard approach for cross-clade or across-outbreak comparisons                                                  |
-| ML phylogeny                | [IQ-TREE2](https://iqtree.github.io)                                                                            | HKY+gamma model used in initial 2026 outbreak analysis; ultrafast bootstrap supported                             |
-| Integrated QC + alignemnt   | [raccoon](https://github.com/artic-network/raccoon) / [raccoon-nf](https://github.com/artic-network/raccoon-nf) | Combines alignment, masking, QC and HTML reports; runs within ONT EPI2ME without command-line experience          |
-| Comprehensive phylodynamics | [BEAST v10.5](http://beast.community)                                                                           | Bayesian inference of tMRCA, epidemic growth rate and spatial spread; used in initial 2026 BDBV outbreak analysis |
-| Live phylogeny              | [Nextstrain BDBV](https://nextstrain.org/ebola/bdbv)                                                            | Continuously updated phylogeny integrating Pathoplexus sequences                                                  |
 
 ## Data Sharing
 
 WHO strongly encourages countries and laboratories to share genome sequence data and associated metadata, and where appropriate and feasible, raw sequence data, through publicly accessible databases in a timely manner to support global surveillance and risk assessment.
 
-All BDBV genomes from the 2026 outbreak are being deposited in [Pathoplexus](https://pathoplexus.org/), which now supports BDBV sequences.
-
-
-## Genome Quality Considerations
-
-The ability to recover complete or near-complete viral genomes is influenced by specimen type, specimen quality, viral load, sequencing methodology and bioinformatic workflows. In general, samples with lower Ct values are more likely to yield high-quality genome coverage, whereas samples with higher Ct values may result in partial genome recovery or reduced sequencing sensitivity. Sequencing results should therefore be interpreted in conjunction with assay performance characteristics, epidemiological information and associated metadata.
-
+All BDBV genomes from the 2026 outbreak are being deposited in [Pathoplexus](https://pathoplexus.org/), which now supports BDBV sequences.  A phylogenetic representation of the BDBV genomes is being maintained by [Nextstrain](https://nextstrain.org/ebola/bdbv) and curated by INRB colleagues.
 
 ---
 
