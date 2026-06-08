@@ -1,0 +1,157 @@
+name: Check for data updates
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 08:00 UTC daily
+  workflow_dispatch:        # Allow manual trigger from Actions tab
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # to commit updated state file
+      issues: write     # to create/comment on notification issue
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check APIs and notify on change
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 << 'EOF'
+          import urllib.request
+          import urllib.error
+          import json
+          import os
+          import subprocess
+          import sys
+
+          STATE_FILE  = ".github/data-versions.json"
+          REPO        = os.environ["GITHUB_REPOSITORY"]
+          TOKEN       = os.environ["GITHUB_TOKEN"]
+          DASHBOARD   = "https://who-collaboratory.github.io/collaboratory-ebola-genomics-community/dashboard.html"
+          LABEL       = "data-updates"
+
+          GH_HEADERS = {
+              "Authorization": f"Bearer {TOKEN}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def fetch_json(url, method="GET", body=None, headers=None):
+              req = urllib.request.Request(url, method=method)
+              for k, v in (headers or {}).items():
+                  req.add_header(k, v)
+              if body is not None:
+                  req.data = json.dumps(body).encode()
+                  req.add_header("Content-Type", "application/json")
+              with urllib.request.urlopen(req, timeout=20) as r:
+                  return json.loads(r.read())
+
+          # ── Load stored state ──────────────────────────────────────────────
+          with open(STATE_FILE) as f:
+              state = json.load(f)
+
+          first_run = not state.get("pathoplexus_data_version")
+
+          # ── Fetch Pathoplexus LAPIS ────────────────────────────────────────
+          try:
+              lapis = fetch_json(
+                  "https://lapis.pathoplexus.org/ebola-bdbv/sample/details"
+                  "?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION&limit=1&dataFormat=JSON"
+              )
+              new_lapis = lapis["info"]["dataVersion"]
+          except Exception as e:
+              print(f"WARNING: LAPIS fetch failed — {e}", file=sys.stderr)
+              new_lapis = state.get("pathoplexus_data_version", "")
+
+          # ── Fetch Nextstrain ───────────────────────────────────────────────
+          try:
+              ns = fetch_json("https://nextstrain.org/charon/getDataset?prefix=ebola/bdbv")
+              new_nextstrain = ns["meta"]["updated"]
+          except Exception as e:
+              print(f"WARNING: Nextstrain fetch failed — {e}", file=sys.stderr)
+              new_nextstrain = state.get("nextstrain_updated", "")
+
+          # ── Detect changes (skip notification on first run) ────────────────
+          updates = []
+          if not first_run:
+              if new_lapis != state.get("pathoplexus_data_version"):
+                  updates.append(
+                      f"🗄️ **Pathoplexus** sequence data updated\n"
+                      f"> Previous version: `{state['pathoplexus_data_version']}`  \n"
+                      f"> New version: `{new_lapis}`"
+                  )
+              if new_nextstrain != state.get("nextstrain_updated"):
+                  updates.append(
+                      f"🌳 **Nextstrain** phylogeny updated\n"
+                      f"> Previous: `{state['nextstrain_updated']}`  \n"
+                      f"> New: `{new_nextstrain}`"
+                  )
+
+          if updates:
+              # ── Find or create the notification issue ──────────────────────
+              existing = fetch_json(
+                  f"https://api.github.com/repos/{REPO}/issues"
+                  f"?labels={LABEL}&state=open&per_page=1",
+                  headers=GH_HEADERS
+              )
+
+              if existing:
+                  issue_number = existing[0]["number"]
+              else:
+                  issue = fetch_json(
+                      f"https://api.github.com/repos/{REPO}/issues",
+                      method="POST",
+                      body={
+                          "title": "🔔 BDBV Dashboard — Data Update Notifications",
+                          "body": (
+                              "This issue tracks updates to the data shown in the "
+                              f"[BDBV Genomics Community Dashboard]({DASHBOARD}).\n\n"
+                              "**To receive email notifications** when Pathoplexus sequence data "
+                              "or the Nextstrain phylogeny are updated, subscribe to this issue: "
+                              "click **Subscribe** in the right-hand panel.\n\n"
+                              "_This issue is maintained automatically. Do not close it._"
+                          ),
+                          "labels": [LABEL],
+                      },
+                      headers=GH_HEADERS
+                  )
+                  issue_number = issue["number"]
+                  print(f"Created notification issue #{issue_number}")
+
+              # ── Post comment ───────────────────────────────────────────────
+              comment_body = "### Data update detected\n\n" + "\n\n".join(updates)
+              comment_body += f"\n\n[View dashboard]({DASHBOARD})"
+
+              fetch_json(
+                  f"https://api.github.com/repos/{REPO}/issues/{issue_number}/comments",
+                  method="POST",
+                  body={"body": comment_body},
+                  headers=GH_HEADERS
+              )
+              print(f"Posted notification to issue #{issue_number}")
+
+          else:
+              print("No changes detected." if not first_run else "First run — storing current versions, no notification sent.")
+
+          # ── Persist updated state ──────────────────────────────────────────
+          state["pathoplexus_data_version"] = new_lapis
+          state["nextstrain_updated"]       = new_nextstrain
+
+          with open(STATE_FILE, "w") as f:
+              json.dump(state, f, indent=2)
+              f.write("\n")
+
+          subprocess.run(["git", "config", "user.name",  "github-actions[bot]"], check=True)
+          subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
+          subprocess.run(["git", "add", STATE_FILE], check=True)
+
+          diff = subprocess.run(["git", "diff", "--cached", "--quiet"])
+          if diff.returncode != 0:
+              subprocess.run(["git", "commit", "-m", "chore: update data version cache [skip ci]"], check=True)
+              subprocess.run(["git", "push"], check=True)
+              print("State file committed.")
+          EOF
