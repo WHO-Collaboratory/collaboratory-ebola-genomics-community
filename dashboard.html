@@ -234,7 +234,7 @@
     <!-- Left: Pathoplexus sequence table -->
     <div class="card">
       <div class="card-header">
-        <h2>🗄️ Sequences in Pathoplexus</h2>
+        <h2>Sequences in public domain</h2>
         <a href="https://pathoplexus.org/seq/search?organism=ebola-bundibugyo" target="_blank">View on Pathoplexus ↗</a>
       </div>
       <div class="card-body">
@@ -248,7 +248,7 @@
 
       <div class="card">
         <div class="card-header">
-          <h2>🌳 2026 Outbreak Phylogeny</h2>
+          <h2>2026 Outbreak Phylogeny</h2>
           <span id="peartree-status" style="font-size:0.8rem;color:#666;">Loading tree from Nextstrain…</span>
         </div>
         <div id="bdbv-tree-2026" style="height:560px;"></div>
@@ -256,7 +256,7 @@
 
       <div class="card">
         <div class="card-header">
-          <h2>📈 Genomes over time</h2>
+          <h2>Genomes over time</h2>
         </div>
         <div class="card-body">
           <canvas id="genomesChart"></canvas>
@@ -405,7 +405,8 @@
 
     // Use UTC throughout to avoid timezone-shift date mismatches
     const minDate = new Date(sortedDates[0] + "T00:00:00Z");
-    const maxDate = new Date(sortedDates[sortedDates.length - 1] + "T00:00:00Z");
+    const today   = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
+    const maxDate = new Date(Math.max(new Date(sortedDates[sortedDates.length - 1] + "T00:00:00Z"), today));
 
     // Build a unified label array spanning both ranges
     const labels = [], colData = [], relData = [];
@@ -469,7 +470,7 @@
         },
         scales: {
           x: {
-            ticks: { font: { size: 11 }, maxRotation: 45, autoSkip: false },
+            ticks: { font: { size: 11 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 10 },
             grid: { color: "rgba(0,0,0,0.05)" }
           },
           y: {
@@ -505,7 +506,9 @@
         sample:        s.specimenCollectorSampleId              || "n/a",
         date:          s.sampleCollectionDate                   || "—",
         country:       s.geoLocCountry                          || "—",
-        location:      s.geoLocAdmin1 || s.geoLocCity           || "—",
+        location:      (s.geoLocCountry === "Democratic Republic of the Congo"
+                         ? (s.geoLocAdmin2 || s.geoLocAdmin1 || "ex-DRC")
+                         : (s.geoLocAdmin1 || s.geoLocCity))   || "—",
         lab:           s.sequencedByOrganization || s.groupName  || "—",
         terms:         s.dataUseTerms                           || "—",
         released:      s.releasedDate || s.submittedDate        || "—",
@@ -513,6 +516,8 @@
       })).sort((a, b) => b.firstReleased.localeCompare(a.firstReleased));
       if (seqs.length > 0) {
         allSequences = seqs;
+        window._bdbvLocationMap = Object.fromEntries(seqs.filter(s => s.id !== "—").map(s => [s.id, s.location]));
+        tryBuildTree();
         renderTable(seqs, `Live data from <a href="${LAPIS}/swagger-ui/index.html" target="_blank">LAPIS / Pathoplexus</a>`);
         try { renderCharts(); } catch(e) { console.warn("Chart error:", e); }
         return;
@@ -523,6 +528,8 @@
 
     // Fallback: hardcoded sequences from Virological post (2026-05-28)
     allSequences = [...knownSequences].sort((a, b) => b.firstReleased.localeCompare(a.firstReleased));
+    window._bdbvLocationMap = Object.fromEntries(allSequences.filter(s => s.id !== "—").map(s => [s.id, s.location]));
+    tryBuildTree();
     renderTable(allSequences, "Static data from Virological post (2026-05-28) — LAPIS API unavailable");
     try { renderCharts(); } catch(e) { console.warn("Chart error:", e); }
   }
@@ -566,10 +573,12 @@
     const branchLen = Math.max(0, div - parentDiv).toFixed(8);
     const na = node.node_attrs || {};
     if (!node.children) {
-      const rawLoc    = na.division?.value || na.country?.value || '';
+      const accession = na.accession || node.name || '';
+      // Prefer city-level location from Pathoplexus map, fall back to Nextstrain division/country
+      const mappedLoc = window._bdbvLocationMap?.[accession];
+      const rawLoc    = mappedLoc || na.division?.value || na.country?.value || '';
       const location  = rawLoc.replace(/Democratic Republic of the Congo/gi, 'DRC').replace(/Democratic Republic of Congo/gi, 'DRC');
       const date      = na.date?.value || '';
-      const accession = na.accession || node.name || '';
       const country   = (na.country?.value  || '').replace(/"/g, '');
       const division  = (na.division?.value || '').replace(/"/g, '');
       // Label: accession · Location · MM-DD (or just year for partial/unknown dates)
@@ -582,9 +591,30 @@
     return `(${children}):${branchLen}`;
   }
 
-  // Store nexus globally so the module script can read it
-  window._bdbvNexus = null;
-  window._bdbvMeta  = null;
+  // Shared state — NEXUS is built only once both datasets are ready
+  window._bdbvNexus       = null;
+  window._bdbvMeta        = null;
+  window._bdbvTreeData    = null;
+  window._bdbvLocationMap = null;
+
+  function tryBuildTree() {
+    if (!window._bdbvTreeData || !window._bdbvLocationMap) return;
+    try {
+      const data   = window._bdbvTreeData;
+      const pruned = prune2026withOutgroup(data.tree);
+      if (!pruned) throw new Error('No 2026 genomes');
+      const nexus = `#NEXUS\nBEGIN TREES;\nTREE outbreak_2026 = [&R] ${toNewick(pruned, pruned.node_attrs?.div ?? 0)};\nEND;\n`;
+      window._bdbvNexus = nexus;
+      window._bdbvMeta  = data.meta;
+      const totalTips   = (nexus.match(/\[&accession=/g) || []).length;
+      const tipCount2026 = totalTips > 1 ? totalTips - 1 : totalTips;
+      document.getElementById('peartree-status').textContent =
+        `${tipCount2026} outbreak genomes + 1 outgroup · live from Nextstrain (updated ${data.meta?.updated || 'recently'})`;
+    } catch (err) {
+      document.getElementById('peartree-status').textContent = `Could not build tree: ${err.message}`;
+      console.warn('Tree build error:', err);
+    }
+  }
 
   async function fetchTree() {
     try {
@@ -593,16 +623,8 @@
         { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(12000) }
       );
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      const pruned = prune2026withOutgroup(data.tree);
-      if (!pruned) throw new Error('No 2026 genomes');
-      const nexus = `#NEXUS\nBEGIN TREES;\nTREE outbreak_2026 = [&R] ${toNewick(pruned, pruned.node_attrs?.div ?? 0)};\nEND;\n`;
-      window._bdbvNexus = nexus;
-      window._bdbvMeta  = data.meta;
-      const totalTips = (nexus.match(/\[&accession=/g) || []).length;
-      const tipCount2026 = totalTips > 1 ? totalTips - 1 : totalTips;
-      document.getElementById('peartree-status').textContent =
-        `${tipCount2026} outbreak genomes + 1 outgroup · live from Nextstrain (updated ${data.meta?.updated || 'recently'})`;
+      window._bdbvTreeData = await resp.json();
+      tryBuildTree();
     } catch (err) {
       document.getElementById('peartree-status').textContent = `Could not load tree: ${err.message}`;
       console.warn('Tree fetch error:', err);
