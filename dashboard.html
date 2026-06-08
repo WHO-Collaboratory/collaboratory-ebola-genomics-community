@@ -608,8 +608,8 @@
       window._bdbvMeta  = data.meta;
       const totalTips   = (nexus.match(/\[&accession=/g) || []).length;
       const tipCount2026 = totalTips > 1 ? totalTips - 1 : totalTips;
-      document.getElementById('peartree-status').textContent =
-        `${tipCount2026} outbreak genomes + 1 outgroup · live from Nextstrain (updated ${data.meta?.updated || 'recently'})`;
+      document.getElementById('peartree-status').innerHTML =
+        `${tipCount2026} outbreak genomes + 1 outgroup · live from Nextstrain (updated ${data.meta?.updated || 'recently'}) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
     } catch (err) {
       document.getElementById('peartree-status').textContent = `Could not build tree: ${err.message}`;
       console.warn('Tree build error:', err);
