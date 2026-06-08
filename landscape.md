@@ -58,12 +58,7 @@ Amplicon-based approaches offer lower per-sample cost and higher throughput than
 
 Metagenomic sequencing involves the untargeted sequencing of nucleic acids directly from a sample without pathogen-specific amplification, enabling de novo genome assembly without reliance on a closely related reference sequence. Because it requires no primer design or probe development, it is inherently unbiased and resilient to mutations, deletions and genomic rearrangements in the target genome. This makes it particularly valuable for identifying genetically divergent variants, novel viruses, and for generating reference genomes during the early phases of an outbreak before targeted assays have been developed or validated. It can also serve as a cross-validation tool for amplicon-based approaches, and can help characterise co-infections or unexpected pathogens when there is diagnostic uncertainty. The primary limitation is sensitivity: high levels of host or environmental nucleic acids typically require samples with high viral loads (Ct &lt;20) to yield sufficient viral reads for complete genome recovery, and metagenomic approaches are generally not cost-effective for large-scale routine surveillance where targeted methods are more practical.
 
-
-#### Viral metagenomics protocols
-
-| Protocol                                                                                                     | Recommended Ct                             | Platform       | Notes                                                                         |
-| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------ | -------------- | ----------------------------------------------------------------------------- |
-| [SMART-9N](https://www.protocols.io/view/viral-metagenomics-using-smart-9n-amplification-an-j8nlke5wwl5r/v1) | <20 (genomes may be recovered up to Ct 30) | Illumina / ONT | SISPA-based; optimised for viral RNA; primers available on request from ARTIC |
+There are several enrichment protocols that can be utilised to increase the coverage of viral RNA including the [SMART-9N](https://www.protocols.io/view/viral-metagenomics-using-smart-9n-amplification-an-j8nlke5wwl5r/v1) method.
 
 > Metagenomics is particularly valuable when there is diagnostic uncertainty about the causative agent, or when new strains of Ebolavirus or other haemorrhagic fevers may be co-circulating.
 
@@ -73,12 +68,11 @@ Metagenomic sequencing involves the untargeted sequencing of nucleic acids direc
 
 Generating a BDBV consensus sequence requires multiple bioinformatic steps including host read removal, quality trimming, primer trimming (for amplicon data), mapping to a reference genome, and variant calling. End-to-end pipelines that integrate these steps are listed below, grouped by sequencing approach. Pipelines typically use a workflow management system (Nextflow or WDL) and containerisation (Docker or Singularity) to enable reproducible deployment across different environments.
 
-| **Pipeline**                                                              | **Approach** | **Platform**   | **Workflow** | **Containerised**    | **Host removal** | **Trimming**      | **Primer removal** | **Mapping**    | **Variant calling**        | **Used in 2026 outbreak**                  |
-| ------------------------------------------------------------------------- | ------------ | -------------- | ------------ | -------------------- | ---------------- | ----------------- | ------------------ | -------------- | -------------------------- | ------------------------------------------ |
-| [nf-core/viralrecon](https://github.com/nf-core/viralrecon)               | Bait capture | Illumina       | Nextflow     | Docker / Singularity | Kraken2          | fastp             | —                  | bowtie2        | ivar / samtools / bcftools | ✅ INRB (DRC) — Twist panel data            |
-| [artic-network/amplicon-nf](https://github.com/artic-network/amplicon-nf) | Amplicon     | Illumina / ONT | Nextflow     | Docker / Singularity | Hostile          | fastp / guppyplex | ivar / artic       | bwa / minimap2 | ivar / medaka              | Recommended — validation underway at INRB  |
+| **Pipeline**                                                              | **Approach** | **Platform**   | **Workflow** | **Containerised**    | **Host removal** | **Trimming**      | **Primer removal** | **Mapping**    | **Variant calling**        | **Used in 2026 outbreak**                 |
+| ------------------------------------------------------------------------- | ------------ | -------------- | ------------ | -------------------- | ---------------- | ----------------- | ------------------ | -------------- | -------------------------- | ----------------------------------------- |
+| [nf-core/viralrecon](https://github.com/nf-core/viralrecon)               | Bait capture | Illumina       | Nextflow     | Docker / Singularity | Kraken2          | fastp             | —                  | bowtie2        | ivar / samtools / bcftools | INRB (DRC) — Twist panel data             |
+| [artic-network/amplicon-nf](https://github.com/artic-network/amplicon-nf) | Amplicon     | Illumina / ONT | Nextflow     | Docker / Singularity | Hostile          | fastp / guppyplex | ivar / artic       | bwa / minimap2 | ivar / medaka              | Recommended — validation underway at INRB |
 
-Tutorials for `amplicon-nf` are available on the [ARTIC website](https://artic.network/resources/amplicon-nf) and [GitHub](https://github.com/artic-network/amplicon-nf/tree/main/docs).
 
 ---
 
