@@ -3,6 +3,30 @@
 
 @import "{{ site.theme }}";
 
-.site-header {
+// Hide the auto-generated site header and footer from minima theme
+.site-header,
+.site-footer {
   display: none;
+}
+
+// Widen the content area
+.wrapper {
+  max-width: 1100px;
+  padding-right: 30px;
+  padding-left: 30px;
+}
+
+// Make tables horizontally scrollable
+table {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  width: 100%;
+}
+
+// Allow table cells to wrap normally
+table td,
+table th {
+  white-space: normal;
+  min-width: 80px;
 }
