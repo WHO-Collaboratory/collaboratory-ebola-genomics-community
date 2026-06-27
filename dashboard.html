@@ -307,7 +307,7 @@
     { id: "PP_00711U1",  sample: "26FHV053",  date: "2026-05-03", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
     { id: "PP_00711VZ",  sample: "26FHV056",  date: "2026-05-03", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
     { id: "PP_00712Q8",  sample: "26FHV044",  date: "2026-05-03", country: "Democratic Republic of the Congo", location: "Ituri",   lab: "INRB",              terms: "RESTRICTED", released: "2026-06-07" },
-  ].map(s => ({ ...s, firstReleased: s.released }));
+  ].map(s => ({ ...s, firstReleased: s.released, dateNorm: normalizeDate(s.date) }));
 
   const countryTag = {
     "Democratic Republic of the Congo": '<span class="tag tag-drc">DRC</span>',
@@ -390,14 +390,23 @@
     return { labels, daily, cumulative, missing, included };
   }
 
+  // Normalise partial Pathoplexus dates (YYYY-MM or YYYY) to full YYYY-MM-DD for charting
+  function normalizeDate(d) {
+    if (!d || d === "—") return "—";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    if (/^\d{4}-\d{2}$/.test(d))       return d + "-01";
+    if (/^\d{4}$/.test(d))             return d + "-01-01";
+    return "—";
+  }
+
   function renderCharts() {
     // Build both series — union of all dates across both fields
-    const col = buildTimeSeries(allSequences, "date");
+    const col = buildTimeSeries(allSequences, "dateNorm");
     const rel = buildTimeSeries(allSequences, "firstReleased");
 
     // Merge labels: take the wider date range of the two
     const allDates = new Set([
-      ...(allSequences.map(s => s.date).filter(d => d && d !== "—")),
+      ...(allSequences.map(s => s.dateNorm).filter(d => d && d !== "—")),
       ...(allSequences.map(s => s.firstReleased).filter(d => d && d !== "—")),
     ]);
     const sortedDates = Array.from(allDates).sort();
@@ -412,7 +421,7 @@
     const labels = [], colData = [], relData = [];
     const colCounts = {}, relCounts = {};
     allSequences.forEach(s => {
-      if (s.date          && s.date          !== "—") colCounts[s.date]          = (colCounts[s.date]          || 0) + 1;
+      if (s.dateNorm      && s.dateNorm      !== "—") colCounts[s.dateNorm]      = (colCounts[s.dateNorm]      || 0) + 1;
       if (s.firstReleased && s.firstReleased !== "—") relCounts[s.firstReleased] = (relCounts[s.firstReleased] || 0) + 1;
     });
 
@@ -505,6 +514,7 @@
         id:            s.accession                              || "—",
         sample:        s.specimenCollectorSampleId              || "n/a",
         date:          s.sampleCollectionDate                   || "—",
+        dateNorm:      normalizeDate(s.sampleCollectionDate),
         country:       s.geoLocCountry                          || "—",
         location:      (s.geoLocCountry === "Democratic Republic of the Congo"
                          ? (s.geoLocAdmin2 || s.geoLocAdmin1 || "ex-DRC")
