@@ -40,49 +40,56 @@ jobs:
               "X-GitHub-Api-Version": "2022-11-28",
           }
 
-          def fetch_json(url, method="GET", body=None, headers=None):
+          def fetch_json(url, method="GET", body=None, headers=None, timeout=30):
               req = urllib.request.Request(url, method=method)
               for k, v in (headers or {}).items():
                   req.add_header(k, v)
               if body is not None:
                   req.data = json.dumps(body).encode()
                   req.add_header("Content-Type", "application/json")
-              with urllib.request.urlopen(req, timeout=20) as r:
+              with urllib.request.urlopen(req, timeout=timeout) as r:
                   return json.loads(r.read())
 
           # ── Load stored state ──────────────────────────────────────────────
           with open(STATE_FILE) as f:
               state = json.load(f)
 
-          first_run = not state.get("pathoplexus_data_version")
+          first_run = not state.get("pathoplexus_sequence_count")
 
-          # ── Fetch Pathoplexus LAPIS ────────────────────────────────────────
+          # ── Fetch Pathoplexus LAPIS (aggregated — fast, returns count only) ─
           try:
               lapis = fetch_json(
-                  "https://lapis.pathoplexus.org/ebola-bdbv/sample/details"
-                  "?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION&limit=1&dataFormat=JSON"
+                  "https://lapis.pathoplexus.org/ebola-bdbv/sample/aggregated"
+                  "?outbreak=Bdbv-2026&dataFormat=JSON",
+                  timeout=45
               )
-              new_lapis = lapis["info"]["dataVersion"]
+              new_count = str(lapis["data"][0]["count"])
           except Exception as e:
               print(f"WARNING: LAPIS fetch failed — {e}", file=sys.stderr)
-              new_lapis = state.get("pathoplexus_data_version", "")
+              new_count = state.get("pathoplexus_sequence_count", "")
 
           # ── Fetch Nextstrain ───────────────────────────────────────────────
           try:
-              ns = fetch_json("https://nextstrain.org/charon/getDataset?prefix=ebola/bdbv")
+              ns = fetch_json(
+                  "https://nextstrain.org/charon/getDataset?prefix=ebola/bdbv",
+                  timeout=45
+              )
               new_nextstrain = ns["meta"]["updated"]
           except Exception as e:
               print(f"WARNING: Nextstrain fetch failed — {e}", file=sys.stderr)
               new_nextstrain = state.get("nextstrain_updated", "")
 
+          print(f"Pathoplexus sequences: {new_count} (stored: {state.get('pathoplexus_sequence_count', 'none')})")
+          print(f"Nextstrain updated: {new_nextstrain} (stored: {state.get('nextstrain_updated', 'none')})")
+
           # ── Detect changes (skip notification on first run) ────────────────
           updates = []
           if not first_run:
-              if new_lapis != state.get("pathoplexus_data_version"):
+              if new_count != state.get("pathoplexus_sequence_count"):
                   updates.append(
-                      f"🗄️ **Pathoplexus** sequence data updated\n"
-                      f"> Previous version: `{state['pathoplexus_data_version']}`  \n"
-                      f"> New version: `{new_lapis}`"
+                      f"🗄️ **Pathoplexus** sequence count changed\n"
+                      f"> Previous: `{state['pathoplexus_sequence_count']}` sequences  \n"
+                      f"> New: `{new_count}` sequences"
                   )
               if new_nextstrain != state.get("nextstrain_updated"):
                   updates.append(
@@ -135,11 +142,13 @@ jobs:
               print(f"Posted notification to issue #{issue_number}")
 
           else:
-              print("No changes detected." if not first_run else "First run — storing current versions, no notification sent.")
+              print("No changes detected." if not first_run else "First run — storing current state, no notification sent.")
 
           # ── Persist updated state ──────────────────────────────────────────
-          state["pathoplexus_data_version"] = new_lapis
-          state["nextstrain_updated"]       = new_nextstrain
+          state["pathoplexus_sequence_count"] = new_count
+          state["nextstrain_updated"]         = new_nextstrain
+          # Remove old dataVersion key if present
+          state.pop("pathoplexus_data_version", None)
 
           with open(STATE_FILE, "w") as f:
               json.dump(state, f, indent=2)
