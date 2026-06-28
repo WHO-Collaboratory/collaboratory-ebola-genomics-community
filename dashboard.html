@@ -126,14 +126,14 @@
     #seq-status {
       font-size: 0.85rem;
       color: #666;
-      margin-bottom: 12px;
+      margin-bottom: 6px;
     }
     #seq-count {
       font-size: 1.6rem;
       font-weight: 700;
       color: #005a8e;
     }
-    #seq-count-label { font-size: 0.8rem; color: #666; margin-bottom: 16px; }
+    #seq-count-label { font-size: 0.8rem; color: #666; margin-bottom: 6px; }
 
     /* Scope table styles under #seq-table-container to beat Bootstrap specificity */
     #seq-table-container { overflow-x: auto; overflow-y: auto; }
@@ -229,22 +229,22 @@
 <main>
 
   <!-- Main grid: Pathoplexus left, charts + tree right -->
-  <div class="grid" style="margin-bottom:20px; align-items:stretch;">
+  <div class="grid" style="margin-bottom:20px; align-items:start;">
 
     <!-- Left: Pathoplexus sequence table -->
-    <div class="card" style="display:flex;flex-direction:column;">
+    <div id="left-col" class="card" style="display:flex;flex-direction:column;overflow:hidden;">
       <div class="card-header">
         <h2>Sequences in public domain</h2>
         <a href="https://pathoplexus.org/ebola-bdbv/search" target="_blank">View on Pathoplexus ↗</a>
       </div>
-      <div class="card-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="card-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;padding-top:8px !important;">
         <div id="seq-status">Loading sequence data…</div>
         <div id="seq-table-container" style="flex:1;overflow-y:auto;overflow-x:auto;"></div>
       </div>
     </div>
 
     <!-- Right: charts + PearTree stacked -->
-    <div style="display:flex;flex-direction:column;gap:20px;">
+    <div id="right-col" style="display:flex;flex-direction:column;gap:20px;">
 
       <div class="card">
         <div class="card-header">
@@ -529,7 +529,7 @@
         window._bdbvLocationMap = Object.fromEntries(seqs.filter(s => s.id !== "—").map(s => [s.id, s.location]));
         tryBuildTree();
         renderTable(seqs, `Live data from <a href="${LAPIS}/swagger-ui/index.html" target="_blank">LAPIS / Pathoplexus</a>`);
-        try { renderCharts(); } catch(e) { console.warn("Chart error:", e); }
+        try { renderCharts(); setTimeout(matchTableHeight, 100); } catch(e) { console.warn("Chart error:", e); }
         return;
       }
     } catch (err) {
@@ -544,7 +544,19 @@
     try { renderCharts(); } catch(e) { console.warn("Chart error:", e); }
   }
 
+  function matchTableHeight() {
+    const right = document.getElementById('right-col');
+    const left  = document.getElementById('left-col');
+    if (right && left) {
+      left.style.maxHeight = right.offsetHeight + 'px';
+    }
+  }
+
   loadSequences();
+
+  // Match height after everything has rendered
+  window.addEventListener('load', matchTableHeight);
+  window.addEventListener('resize', matchTableHeight);
 
   // ── PearTree: 2026 outbreak tree from Nextstrain ──────────────────────────
 
