@@ -255,7 +255,7 @@
         </div>
         <div id="bdbv-tree-2026" style="height:560px;"></div>
         <div style="padding:6px 16px 10px;font-size:0.75rem;color:#666;">
-          <span style="color:#e05c3a;font-weight:700;">★</span> Uploaded in the last 7 days
+          <span style="font-weight:700;">★</span> Uploaded in the last 7 days
         </div>
       </div>
 
@@ -714,10 +714,6 @@
           statusBar: false,
         },
       });
-      console.log('[PearTree] embed() returned:', ctrl);
-      console.log('[PearTree] .pt-embed-wrap:', document.querySelector('.pt-embed-wrap'));
-      console.log('[PearTree] #app-html-host:', document.querySelector('#app-html-host'));
-      console.log('[PearTree] container children:', document.getElementById('bdbv-tree-2026')?.children?.length);
     } catch (err) {
       status.textContent = `PearTree render error: ${err.message}`;
       console.error('[PearTree] embed error:', err);
