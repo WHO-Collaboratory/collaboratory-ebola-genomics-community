@@ -176,6 +176,8 @@
     .tag-drc { background: #d4edda; color: #155724; }
     .tag-uganda { background: #cce5ff; color: #004085; }
     .tag-germany { background: #e2d9f3; color: #4a235a; }
+    .tag-new { background: #fde8e4; color: #c0392b; }
+    tr.row-new td { background: #fff8f7 !important; }
 
     .fallback-box {
       background: #f0f4f8;
@@ -252,6 +254,9 @@
           <span id="peartree-status" style="font-size:0.8rem;color:#666;">Loading tree from Nextstrain…</span>
         </div>
         <div id="bdbv-tree-2026" style="height:560px;"></div>
+        <div style="padding:6px 16px 10px;font-size:0.75rem;color:#666;">
+          <span style="color:#e05c3a;font-weight:700;">★</span> Uploaded in the last 7 days
+        </div>
       </div>
 
       <div class="card">
@@ -332,9 +337,12 @@
       ? '<span class="tag tag-drc" style="background:#d4edda;color:#155724;">Open</span>'
       : t;
 
-    const rows = sequences.map(s => `
-      <tr>
-        <td><a href="https://pathoplexus.org/seq/${s.id}" target="_blank">${s.id}</a></td>
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const rows = sequences.map(s => {
+      const isNew = s.firstReleased && s.firstReleased !== "—" && s.firstReleased >= cutoff;
+      return `
+      <tr class="${isNew ? 'row-new' : ''}">
+        <td><a href="https://pathoplexus.org/seq/${s.id}" target="_blank">${s.id}</a>${isNew ? ' <span class="tag tag-new">New</span>' : ''}</td>
         <td>${s.sample}</td>
         <td>${s.date}</td>
         <td>${countryTag[s.country] || s.country}</td>
@@ -343,7 +351,7 @@
         <td>${s.firstReleased}</td>
         <td>${termsTag(s.terms || "—")}</td>
       </tr>
-    `).join("");
+    `}).join("");
 
     container.innerHTML = `
       <table>
@@ -526,6 +534,8 @@
       })).sort((a, b) => b.firstReleased.localeCompare(a.firstReleased));
       if (seqs.length > 0) {
         allSequences = seqs;
+        const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        window._bdbvNewAccessions = new Set(seqs.filter(s => s.firstReleased >= cutoff).map(s => s.id));
         window._bdbvLocationMap = Object.fromEntries(seqs.filter(s => s.id !== "—").map(s => [s.id, s.location]));
         tryBuildTree();
         renderTable(seqs, `Live data from <a href="${LAPIS}/swagger-ui/index.html" target="_blank">LAPIS / Pathoplexus</a>`);
@@ -606,7 +616,9 @@
       // Label: accession · Location · MM-DD (or just year for partial/unknown dates)
       const shortDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(5) : date.slice(0, 4);
       const parts = [accession, location, shortDate].filter(Boolean);
-      const label = parts.join(' · ').replace(/'/g, "''");
+      const isNew = window._bdbvNewAccessions?.has(accession);
+      const labelText = (isNew ? '★ ' : '') + parts.join(' · ');
+      const label = labelText.replace(/'/g, "''");
       return `'${label}'[&accession="${accession}",date="${date}",country="${country}",division="${division}"]:${branchLen}`;
     }
     const children = node.children.map(c => toNewick(c, div)).join(',');
@@ -614,10 +626,11 @@
   }
 
   // Shared state — NEXUS is built only once both datasets are ready
-  window._bdbvNexus       = null;
-  window._bdbvMeta        = null;
-  window._bdbvTreeData    = null;
-  window._bdbvLocationMap = null;
+  window._bdbvNexus          = null;
+  window._bdbvMeta           = null;
+  window._bdbvTreeData       = null;
+  window._bdbvLocationMap    = null;
+  window._bdbvNewAccessions  = new Set(); // accessions first uploaded within last 7 days
 
   function tryBuildTree() {
     if (!window._bdbvTreeData || !window._bdbvLocationMap) return;
