@@ -136,7 +136,7 @@
     #seq-count-label { font-size: 0.8rem; color: #666; margin-bottom: 16px; }
 
     /* Scope table styles under #seq-table-container to beat Bootstrap specificity */
-    #seq-table-container { overflow-x: auto; }
+    #seq-table-container { overflow-x: auto; overflow-y: auto; }
     #seq-table-container table {
       width: 100% !important;
       border-collapse: collapse !important;
@@ -229,17 +229,17 @@
 <main>
 
   <!-- Main grid: Pathoplexus left, charts + tree right -->
-  <div class="grid" style="margin-bottom:20px; align-items:start;">
+  <div class="grid" style="margin-bottom:20px; align-items:stretch;">
 
     <!-- Left: Pathoplexus sequence table -->
-    <div class="card">
+    <div class="card" style="display:flex;flex-direction:column;">
       <div class="card-header">
         <h2>Sequences in public domain</h2>
         <a href="https://pathoplexus.org/ebola-bdbv/search" target="_blank">View on Pathoplexus ↗</a>
       </div>
-      <div class="card-body">
+      <div class="card-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
         <div id="seq-status">Loading sequence data…</div>
-        <div id="seq-table-container"></div>
+        <div id="seq-table-container" style="flex:1;overflow-y:auto;overflow-x:auto;"></div>
       </div>
     </div>
 
