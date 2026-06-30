@@ -399,6 +399,12 @@
   }
 
   // Normalise partial Pathoplexus dates (YYYY-MM or YYYY) to full YYYY-MM-DD for charting
+  function toTitleCase(str) {
+    if (!str || str === "—") return str;
+    if (str.toLowerCase() === "ex-drc") return "ex-DRC";
+    return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  }
+
   function normalizeDate(d) {
     if (!d || d === "—") return "—";
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
@@ -524,9 +530,9 @@
         date:          s.sampleCollectionDate                   || "—",
         dateNorm:      normalizeDate(s.sampleCollectionDate),
         country:       s.geoLocCountry                          || "—",
-        location:      (s.geoLocCountry === "Democratic Republic of the Congo"
+        location:      toTitleCase((s.geoLocCountry === "Democratic Republic of the Congo"
                          ? (s.geoLocAdmin2 || s.geoLocAdmin1 || "ex-DRC")
-                         : (s.geoLocAdmin1 || s.geoLocCity))   || "—",
+                         : (s.geoLocAdmin1 || s.geoLocCity))   || "—"),
         lab:           s.sequencedByOrganization || s.groupName  || "—",
         terms:         s.dataUseTerms                           || "—",
         released:      s.releasedDate || s.submittedDate        || "—",
