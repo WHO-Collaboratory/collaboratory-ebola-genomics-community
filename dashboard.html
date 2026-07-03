@@ -251,11 +251,17 @@
       <div class="card">
         <div class="card-header">
           <h2>2026 Outbreak Phylogeny</h2>
-          <span id="peartree-status" style="font-size:0.8rem;color:#666;">Loading tree from Nextstrain…</span>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span id="peartree-status" style="font-size:0.8rem;color:#666;">Loading tree from Nextstrain…</span>
+            <div id="tree-colour-toggle" style="display:none;font-size:0.75rem;border:1px solid #ddd;border-radius:6px;overflow:hidden;">
+              <button id="btn-colour-new" onclick="setTreeColour('new')" style="padding:3px 10px;border:none;background:#e05c3a;color:#fff;cursor:pointer;font-size:0.75rem;">New</button>
+              <button id="btn-colour-loc" onclick="setTreeColour('location')" style="padding:3px 10px;border:none;background:#fff;color:#555;cursor:pointer;font-size:0.75rem;">Country</button>
+            </div>
+          </div>
         </div>
         <div id="bdbv-tree-2026" style="height:560px;"></div>
         <div style="padding:6px 16px 10px;font-size:0.75rem;color:#666;">
-          <span style="font-weight:700;">★</span> Uploaded in the last 7 days
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e05c3a;vertical-align:middle;margin-right:4px;"></span><span style="color:#e05c3a;font-weight:700;">★</span> Uploaded in the last 7 days
         </div>
       </div>
 
@@ -543,6 +549,7 @@
         const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         window._bdbvNewAccessions = new Set(seqs.filter(s => s.firstReleased >= cutoff).map(s => s.id));
         window._bdbvLocationMap = Object.fromEntries(seqs.filter(s => s.id !== "—").map(s => [s.id, s.location]));
+        window._bdbvCountryMap  = Object.fromEntries(seqs.filter(s => s.id !== "—").map(s => [s.id, s.country]));
         tryBuildTree();
         renderTable(seqs, `Live data from <a href="${LAPIS}/swagger-ui/index.html" target="_blank">LAPIS / Pathoplexus</a>`);
         try { renderCharts(); setTimeout(matchTableHeight, 100); } catch(e) { console.warn("Chart error:", e); }
@@ -617,7 +624,7 @@
       const rawLoc    = mappedLoc || na.division?.value || na.country?.value || '';
       const location  = rawLoc.replace(/Democratic Republic of the Congo/gi, 'DRC').replace(/Democratic Republic of Congo/gi, 'DRC');
       const date      = na.date?.value || '';
-      const country   = (na.country?.value  || '').replace(/"/g, '');
+      const country   = (window._bdbvCountryMap?.[accession] || na.country?.value || '').replace(/"/g, '');
       const division  = (na.division?.value || '').replace(/"/g, '');
       // Label: accession · Location · MM-DD (or just year for partial/unknown dates)
       const shortDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(5) : date.slice(0, 4);
@@ -625,7 +632,9 @@
       const isNew = window._bdbvNewAccessions?.has(accession);
       const labelText = (isNew ? '★ ' : '') + parts.join(' · ');
       const label = labelText.replace(/'/g, "''");
-      return `'${label}'[&accession="${accession}",date="${date}",country="${country}",division="${division}"]:${branchLen}`;
+      const userColour = isNew ? `,user_colour="#e05c3a"` : '';
+      const locAnnot = location ? `,location="${location.replace(/"/g, '')}"` : '';
+      return `'${label}'[&accession="${accession}",date="${date}",country="${country}",division="${division}"${locAnnot}${userColour}]:${branchLen}`;
     }
     const children = node.children.map(c => toNewick(c, div)).join(',');
     return `(${children}):${branchLen}`;
@@ -636,6 +645,7 @@
   window._bdbvMeta           = null;
   window._bdbvTreeData       = null;
   window._bdbvLocationMap    = null;
+  window._bdbvCountryMap     = null;
   window._bdbvNewAccessions  = new Set(); // accessions first uploaded within last 7 days
 
   function tryBuildTree() {
@@ -695,6 +705,7 @@
     console.log('[PearTree] nexus ready, calling embed()');
     console.log('[PearTree] container:', document.getElementById('bdbv-tree-2026'));
     try {
+      window._bdbvTreeCtrl = null;
       const ctrl = await embed({
         container: 'bdbv-tree-2026',
         tree:      window._bdbvNexus,
@@ -708,6 +719,7 @@
           paddingRight:      '220',
           axisShow:          'forward',
           axisMajorInterval: 'auto',
+          tipColourBy:       'user_colour',
         },
         ui: {
           theme:     'light',
@@ -720,6 +732,8 @@
           statusBar: false,
         },
       });
+      window._bdbvTreeCtrl = ctrl;
+      document.getElementById('tree-colour-toggle').style.display = 'flex';
     } catch (err) {
       status.textContent = `PearTree render error: ${err.message}`;
       console.error('[PearTree] embed error:', err);
@@ -727,6 +741,27 @@
   }
 
   initPearTree();
+</script>
+
+<script>
+  function setTreeColour(mode) {
+    const isNew = mode === 'new';
+    const colourBy = isNew ? 'user_colour' : 'country';
+
+    // PearTree listens for native 'change' events bubbling from these selects
+    ['tip-colour-by', 'label-colour-by'].forEach(id => {
+      const select = document.getElementById(id);
+      if (select) {
+        select.value = colourBy;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    document.getElementById('btn-colour-new').style.background = isNew ? '#e05c3a' : '#fff';
+    document.getElementById('btn-colour-new').style.color      = isNew ? '#fff'    : '#555';
+    document.getElementById('btn-colour-loc').style.background = isNew ? '#fff'    : '#005a8e';
+    document.getElementById('btn-colour-loc').style.color      = isNew ? '#555'    : '#fff';
+  }
 </script>
 </body>
 </html>
