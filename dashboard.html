@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BDBV Genomics Community Dashboard</title>
+  <title>IPSN | BDBV Dashboard</title>
   <!-- PearTree styles — paths match actual repo structure, not the docs example -->
   <link rel="stylesheet" href="pearcore/vendor/bootstrap.min-artic.css" />
   <link rel="stylesheet" href="pearcore/vendor/bootstrap-icons/bootstrap-icons.css" />
@@ -851,6 +851,7 @@
         },
       });
       window._bdbvTreeCtrl = ctrl;
+      document.title = 'IPSN | BDBV Dashboard';  // Override PearTree's filename-based title
       document.getElementById('tree-colour-toggle').style.display = 'flex';
       document.getElementById('btn-toggle-rtt').style.display = 'inline-block';
       document.getElementById('tree-search').style.display = 'flex';
