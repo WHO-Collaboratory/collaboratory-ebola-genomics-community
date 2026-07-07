@@ -272,6 +272,9 @@
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e05c3a;vertical-align:middle;margin-right:4px;"></span><span style="color:#e05c3a;font-weight:700;">★</span> Uploaded in the last 7 days</span>
           <span style="color:#999;font-style:italic;">2026 outbreak subtree · rooted using 2007 BDBV strain (not shown)</span>
         </div>
+        <div style="padding:6px 16px 10px;font-size:0.7rem;color:#a00;border-top:1px solid #e8e8e8;line-height:1.4;">
+          <span style="font-weight:600;">Excluded from tree:</span> <span id="tree-exclusions-footnote"></span>
+        </div>
       </div>
 
       <div class="card">
@@ -343,7 +346,15 @@
 
     status.innerHTML = `
       <div id="seq-count">${sequences.length}</div>
-      <div id="seq-count-label">genomes deposited · all under <span class="tag tag-restricted">Restricted Use</span></div>
+      <div id="seq-count-label">genomes deposited · ${(()=>{
+        const nOpen = sequences.filter(s => s.terms === 'OPEN').length;
+        const nRestricted = sequences.filter(s => s.terms === 'RESTRICTED').length;
+        const hasOpen = nOpen > 0;
+        const hasRestricted = nRestricted > 0;
+        if (hasOpen && hasRestricted) return `<span class="tag tag-restricted">${nRestricted} Restricted</span> · <span class="tag tag-drc" style="background:#d4edda;color:#155724;">${nOpen} Open</span>`;
+        if (hasOpen) return `all <span class="tag tag-drc" style="background:#d4edda;color:#155724;">Open</span> use terms`;
+        return 'all under <span class="tag tag-restricted">Restricted Use</span>';
+      })()}</div>
       <div style="font-size:0.75rem;color:#999;margin-bottom:8px;">${source}</div>
     `;
 
@@ -731,19 +742,41 @@
   window._bdbvDateMap        = null;
   window._bdbvNewAccessions  = new Set(); // accessions first uploaded within last 7 days
 
+  // Phylogenetic outliers excluded from tree display
+  const TREE_EXCLUSIONS = {
+    'PP_00764QW': 'Nextclade QC: bad · clock outlier (probable Nanopore GP2 sequencing artefacts)',
+    'PP_0075Z66': 'Nextclade QC: mediocre · clock outlier · VP35 frameshift',
+  };
+
+  function pruneExcluded(node) {
+    // Recursively remove any tips matching exclusion list
+    if (!node.children) {
+      const accession = node.node_attrs?.accession || node.name || '';
+      return TREE_EXCLUSIONS[accession] ? null : node;
+    }
+    const kept = node.children.map(pruneExcluded).filter(Boolean);
+    return kept.length ? { ...node, children: kept } : null;
+  }
+
   function tryBuildTree() {
     if (!window._bdbvTreeData || !window._bdbvLocationMap) return;
     try {
       const data    = window._bdbvTreeData;
       const mrca    = find2026MRCA(data.tree);
       if (!mrca) throw new Error('No 2026 genomes');
+      const mrcaPruned = pruneExcluded(mrca);
+      if (!mrcaPruned) throw new Error('All tips excluded');
       const mrcaDiv = mrca.node_attrs?.div ?? 0;
-      const nexus = `#NEXUS\nBEGIN TREES;\nTREE outbreak_2026 = [&R] ${toNewick(mrca, mrcaDiv)};\nEND;\n`;
+      const nexus = `#NEXUS\nBEGIN TREES;\nTREE outbreak_2026 = [&R] ${toNewick(mrcaPruned, mrcaDiv)};\nEND;\n`;
       window._bdbvNexus = nexus;
       window._bdbvMeta  = data.meta;
       const tipCount2026 = (nexus.match(/\[&accession=/g) || []).length;
       document.getElementById('peartree-status').innerHTML =
         `${tipCount2026} outbreak genomes · live from Nextstrain (updated ${data.meta?.updated || 'recently'}) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
+
+      // Update exclusions footnote
+      const exclusionAccs = Object.keys(TREE_EXCLUSIONS).join(', ');
+      document.getElementById('tree-exclusions-footnote').innerHTML = `${exclusionAccs} due to QC fail`;
     } catch (err) {
       document.getElementById('peartree-status').textContent = `Could not build tree: ${err.message}`;
       console.warn('Tree build error:', err);
