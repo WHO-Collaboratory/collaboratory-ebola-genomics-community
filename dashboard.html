@@ -539,9 +539,9 @@
     try {
       // Two parallel fetches: latest version for metadata, version=1 for first upload dates
       const [latestResp, v1Resp] = await Promise.all([
-        fetch(`${LAPIS}/sample/details?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION&limit=500&dataFormat=JSON`,
+        fetch(`${LAPIS}/sample/details?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION&limit=1000&dataFormat=JSON`,
           { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) }),
-        fetch(`${LAPIS}/sample/details?outbreak=Bdbv-2026&version=1&dataFormat=JSON&fields=accession,releasedDate`,
+        fetch(`${LAPIS}/sample/details?outbreak=Bdbv-2026&version=1&dataFormat=JSON&fields=accession,releasedDate&limit=1000`,
           { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) }),
       ]);
       if (!latestResp.ok) throw new Error(`HTTP ${latestResp.status}`);
