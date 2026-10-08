@@ -45,11 +45,104 @@ try:
 except Exception as e:
     print(f"Warning: could not load metadata ({e})")
 
-# Remove reference
-newick = re.sub(r'NC_014373\.1:[0-9e\.\-]+', '', newick)
-newick = re.sub(r'\(\s*,', '(', newick)
-newick = re.sub(r',\s*,', ',', newick)
-newick = re.sub(r',\s*\)', ')', newick)
+# ---------------------------------------------------------------------------
+# Prune the rooting outgroups from the displayed tree.
+#
+# The tree is rooted on the reference and on the 2007 BDBV strain, both of
+# which are ~19 years divergent from the 2026 outbreak. Left in, their stem
+# dominates the x-axis and compresses the entire outbreak into a sliver.
+# The panel footnote already says the 2026 subtree is shown "rooted using
+# 2007 BDBV strain (not shown)", so drop them from the display.
+#
+# Deleting the label by regex (as this did previously) leaves the outgroup's
+# branch behind as a redundant single-child node, so parse properly, drop the
+# tips, then collapse any node left with one child, carrying its length onto
+# the child so distances to every remaining tip are preserved.
+# ---------------------------------------------------------------------------
+
+class _N:
+    __slots__ = ('name', 'length', 'children')
+
+    def __init__(self):
+        self.name = None
+        self.length = None
+        self.children = []
+
+
+def _parse(text):
+    text = text.strip().rstrip(';')
+    pos = 0
+
+    def node():
+        nonlocal pos
+        n = _N()
+        if pos < len(text) and text[pos] == '(':
+            pos += 1
+            while True:
+                n.children.append(node())
+                if text[pos] == ',':
+                    pos += 1
+                    continue
+                if text[pos] == ')':
+                    pos += 1
+                    break
+                raise ValueError(f'bad newick at {pos}: {text[pos]!r}')
+        m = re.match(r"[^,:;()]+", text[pos:])
+        if m:
+            n.name = m.group(0).strip()
+            pos += m.end()
+        if pos < len(text) and text[pos] == ':':
+            m = re.match(r':(-?[0-9.]+(?:[eE][-+]?\d+)?)', text[pos:])
+            n.length = float(m.group(1))
+            pos += m.end()
+        return n
+
+    return node()
+
+
+def _prune(n, drop):
+    """Drop named tips; return None if nothing survives in this subtree."""
+    if not n.children:
+        return None if (n.name and n.name in drop) else n
+    kept = [c for c in (_prune(c, drop) for c in n.children) if c is not None]
+    if not kept:
+        return None
+    n.children = kept
+    # collapse a node left with a single child, preserving total distance
+    if len(kept) == 1:
+        child = kept[0]
+        child.length = (child.length or 0.0) + (n.length or 0.0)
+        return child
+    return n
+
+
+def _write(n):
+    if n.children:
+        inner = ','.join(_write(c) for c in n.children)
+        s = f'({inner})'
+    else:
+        s = n.name or ''
+    if n.length is not None:
+        s += f':{n.length:.10f}'
+    return s
+
+
+# Outgroups: the reference, plus any tip whose metadata predates the outbreak.
+_tip_names = re.findall(r'[(,]([^,:()]+):', newick)
+outgroups = {'NC_014373.1'}
+for _t in _tip_names:
+    _meta = metadata.get(re.sub(r'\.\d+$', '', _t), {})
+    _date = str(_meta.get('sampleCollectionDate', '') or '')
+    if _date and not _date.startswith('2026'):
+        outgroups.add(_t)
+
+_root = _prune(_parse(newick), outgroups)
+if _root is None:
+    sys.exit('Pruning removed every tip - check the outgroup list')
+_root.length = None  # root has no incoming branch
+newick = _write(_root) + ';'
+print(f"Pruned {len(outgroups)} outgroup tip(s) from display: "
+      f"{', '.join(sorted(outgroups))}")
 while '()' in newick:
     newick = newick.replace('()', '')
 
