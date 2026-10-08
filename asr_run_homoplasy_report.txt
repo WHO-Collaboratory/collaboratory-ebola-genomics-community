@@ -1,0 +1,94 @@
+==============================================================================
+CONVERGENT MUTATION ANALYSIS - ASR-BASED
+==============================================================================
+
+Alignment            : asr_run_input.fasta
+Tree                 : asr_run.treefile
+Outgroup / root      : NC_014373.1
+Sequences            : 799
+Columns analysed     : 17531
+Min ancestral state p: 0.9
+Seq missing cutoff   : 15%
+Site missing cutoff  : 10%
+
+Variable sites                      : 1149
+Sites with homoplasy (CI < 1)       : 125
+Sites where one identical mutation
+  arose on >=2 independent branches : 111
+  ... of which on >=2 INTERNAL
+      branches (each origin leaving
+      >=2 descendants)             : 10
+
+Changes at recurrent sites on terminal branches: 194/294 (66%)
+  A terminal-branch change is private to one sequence and is
+  indistinguishable from a sequencing or consensus-calling error.
+
+Effect of recurrent substitutions:
+  intergenic           58
+  synonymous           34
+  non-synonymous       20
+  non-synonymous : synonymous = 0.59 (neutral expectation ~2.5-3.0)
+
+Transitions among recurrent substitutions: 108/112 (96%) - random expectation ~33%
+
+------------------------------------------------------------------------------
+CONVERGENCE SET (same substitution on >=2 internal branches)
+------------------------------------------------------------------------------
+ genomic    sub   n     CI gene     aa         effect          
+    7285 T>C      3  0.333 -        -          intergenic      
+    7405 T>C      3  0.167 -        -          intergenic      
+    7476 T>C      3  0.143 -        -          intergenic      
+     268 C>T      2  0.167 -        -          intergenic      
+    2242 T>C      2  0.500 NP       T595T      synonymous      
+    3200 T>C      2  0.500 VP35     S31S       synonymous      
+    3686 A>G      2  0.500 VP35     V193V      synonymous      
+    5439 T>C      2  0.333 VP40     *327R      non-synonymous  
+    7423 T>C      2  0.111 -        -          intergenic      
+    9650 T>C      2  0.500 -        -          intergenic      
+
+------------------------------------------------------------------------------
+ALL RECURRENT MUTATIONS (incl. terminal branches - weaker evidence)
+------------------------------------------------------------------------------
+ genomic    sub    n     CI gene       aa         effect          
+    7423 T>C       8  0.111 -          -          intergenic      
+    7476 T>C       6  0.143 -          -          intergenic      
+    2805 T>C       5  0.200 -          -          intergenic      
+    4351 T>C       5  0.200 -          -          intergenic      
+    7405 T>C       5  0.167 -          -          intergenic      
+    8915 A>C       5  0.167 VP30       P140P      synonymous      
+     268 C>T       4  0.167 -          -          intergenic      
+     268 T>C       2  0.167 -          -          intergenic      
+    3708 T>C       4  0.250 VP35       F201L      non-synonymous  
+    7431 T>C       4  0.250 -          -          intergenic      
+    7447 T>C       4  0.250 -          -          intergenic      
+    7461 T>C       4  0.200 -          -          intergenic      
+    7552 T>C       4  0.200 -          -          intergenic      
+   12628 C>T       4  0.200 L          I354I      synonymous      
+    2923 T>C       3  0.250 -          -          intergenic      
+    3258 T>C       3  0.333 VP35       L51L       synonymous      
+    4167 T>C       3  0.333 -          -          intergenic      
+    4312 T>C       3  0.500 -          -          intergenic      
+    5439 T>C       3  0.333 VP40       *327R      non-synonymous  
+    6915 A>G       3  0.333 GP         K299E      non-synonymous  
+    7042 C>T       3  0.333 GP         T341I      non-synonymous  
+    7285 T>C       3  0.333 -          -          intergenic      
+    7485 T>C       3  0.250 -          -          intergenic      
+    7975 T>C       3  0.333 -          -          intergenic      
+   10014 A>G       3  0.333 -          -          intergenic      
+   10208 A>G       3  0.333 -          -          intergenic      
+   10676 G>A       3  0.333 VP24       P114P      synonymous      
+   16250 C>A       3  0.250 L          I1562I     synonymous      
+     354 T>C       2  0.500 -          -          intergenic      
+    1135 T>C       2  0.500 NP         D226D      synonymous      
+    1465 A>G       2  0.500 NP         V336V      synonymous      
+    1859 A>G       2  0.333 NP         N468D      non-synonymous  
+    2239 T>C       2  0.500 NP         D594D      synonymous      
+    2242 T>C       2  0.500 NP         T595T      synonymous      
+    2331 T>C       2  0.500 NP         I625T      non-synonymous  
+    2355 A>G       2  0.500 NP         N633S      non-synonymous  
+    2449 C>T       2  0.500 NP         A664A      synonymous      
+    2464 T>C       2  0.500 NP         H669H      synonymous      
+    2521 T>C       2  0.500 NP         Y688Y      synonymous      
+    2608 T>C       2  0.500 NP         G717G      synonymous      
+    2675 T>C       2  0.500 NP         *740R      non-synonymous  
+
