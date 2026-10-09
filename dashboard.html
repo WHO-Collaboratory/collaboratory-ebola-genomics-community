@@ -918,7 +918,10 @@
       if (!_localTreeData) {
         try {
           console.log('[switchTreeSource] Loading local_tree.nwk...');
-          const resp = await fetch('local_tree.nwk');
+          // Revalidate rather than take a cached copy: local_tree.nwk is
+          // rewritten every time the analysis pipeline runs, and a stale one
+          // silently shows an out-of-date tree alongside current mutation data.
+          const resp = await fetch('local_tree.nwk', { cache: 'no-cache' });
           if (resp.ok) {
             const newick = (await resp.text()).trim();
             _localTreeData = newick;
@@ -1155,7 +1158,8 @@ let filteredEvents = [];
 
 async function loadHomoplasyData() {
   try {
-    const response = await fetch('homoplasy_data.json');
+    // Revalidate: rewritten by the analysis pipeline on every run.
+    const response = await fetch('homoplasy_data.json', { cache: 'no-cache' });
     if (!response.ok) {
       throw new Error(`homoplasy_data.json: HTTP ${response.status}`);
     }

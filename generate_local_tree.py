@@ -127,22 +127,37 @@ def _write(n):
     return s
 
 
+# Phylogenetic outliers the dashboard already states are excluded from the
+# tree. Keep in step with TREE_EXCLUSIONS in dashboard.html, which applies
+# these to the Nextstrain tree; without them here the panel's "Excluded from
+# tree" footnote is untrue for the local tree, and PP_00764QW's artefactual
+# branch is the longest in it.
+QC_EXCLUSIONS = {'PP_00764QW', 'PP_0075Z66'}
+
 # Outgroups: the reference, plus any tip whose metadata predates the outbreak.
 _tip_names = re.findall(r'[(,]([^,:()]+):', newick)
 outgroups = {'NC_014373.1'}
+excluded = set()
 for _t in _tip_names:
-    _meta = metadata.get(re.sub(r'\.\d+$', '', _t), {})
+    _bare = re.sub(r'\.\d+$', '', _t)
+    if _bare in QC_EXCLUSIONS:
+        excluded.add(_t)
+        continue
+    _meta = metadata.get(_bare, {})
     _date = str(_meta.get('sampleCollectionDate', '') or '')
     if _date and not _date.startswith('2026'):
         outgroups.add(_t)
 
-_root = _prune(_parse(newick), outgroups)
+# Dropping the outgroups leaves the root with a single child, which collapses
+# to make the MRCA of the 2026 outbreak the displayed root.
+_root = _prune(_parse(newick), outgroups | excluded)
 if _root is None:
     sys.exit('Pruning removed every tip - check the outgroup list')
 _root.length = None  # root has no incoming branch
 newick = _write(_root) + ';'
-print(f"Pruned {len(outgroups)} outgroup tip(s) from display: "
-      f"{', '.join(sorted(outgroups))}")
+print(f"Pruned {len(outgroups)} outgroup tip(s): {', '.join(sorted(outgroups))}")
+if excluded:
+    print(f"Excluded {len(excluded)} QC outlier(s): {', '.join(sorted(excluded))}")
 while '()' in newick:
     newick = newick.replace('()', '')
 
