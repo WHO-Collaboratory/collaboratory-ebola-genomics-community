@@ -295,9 +295,12 @@
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e05c3a;vertical-align:middle;margin-right:4px;"></span><span style="color:#e05c3a;font-weight:700;">★</span> Uploaded in the last 7 days</span>
           <span style="color:#999;font-style:italic;">2026 outbreak subtree · rooted using 2007 BDBV strain (not shown)</span>
         </div>
-        <div style="padding:6px 16px 10px;font-size:0.7rem;color:#a00;border-top:1px solid #e8e8e8;line-height:1.4;flex-shrink:0;">
-          <span style="font-weight:600;">Excluded from tree:</span> <span id="tree-exclusions-footnote"></span>
-        </div>
+        <details id="tree-exclusions" style="padding:6px 16px 10px;font-size:0.7rem;color:#a00;border-top:1px solid #e8e8e8;line-height:1.4;flex-shrink:0;">
+          <summary style="cursor:pointer;font-weight:600;outline:none;">
+            <span id="tree-exclusions-summary">Excluded from analysis</span>
+          </summary>
+          <div id="tree-exclusions-footnote" style="margin-top:6px;"></div>
+        </details>
     </div>
 
     <!-- Right: Homoplasy Analysis Panel - skinny column -->
@@ -872,9 +875,9 @@
       document.getElementById('peartree-status').innerHTML =
         `${tipCount2026} outbreak genomes · live from Nextstrain (updated ${data.meta?.updated || 'recently'}) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
 
-      // Update exclusions footnote
-      const exclusionAccs = Object.keys(TREE_EXCLUSIONS).join(', ');
-      document.getElementById('tree-exclusions-footnote').innerHTML = `${exclusionAccs} due to QC fail`;
+      // Exclusions are rendered from homoplasy_data.json, which knows the
+      // full set (QC-failed sequences as well as these tree outliers).
+      renderExclusions();
     } catch (err) {
       document.getElementById('peartree-status').textContent = `Could not build tree: ${err.message}`;
       console.warn('Tree build error:', err);
@@ -1156,6 +1159,42 @@
 let allHomoplasyEvents = [];
 let filteredEvents = [];
 
+// ── Excluded-genome panel ────────────────────────────────────────────────
+  // Driven by homoplasy_data.json metadata.excluded, which groups every genome
+  // left out of the displayed results by reason. Safe to call before that file
+  // has loaded; loadHomoplasyData() calls it again once it has.
+  window.renderExclusions = function renderExclusions() {
+    const host = document.getElementById('tree-exclusions-footnote');
+    const summary = document.getElementById('tree-exclusions-summary');
+    if (!host) return;
+    const ex = homoplasyMetadata && homoplasyMetadata.excluded;
+    if (!ex || !ex.groups) {
+      if (summary) summary.textContent = 'Excluded from analysis';
+      host.innerHTML = '<span style="color:#888;">Not yet loaded.</span>';
+      return;
+    }
+    const kept = homoplasyMetadata.n_sequences;
+    const total = homoplasyMetadata.n_sequences_before_filter;
+    if (summary) {
+      summary.textContent =
+        `Excluded from analysis: ${ex.total} genome${ex.total === 1 ? '' : 's'}`
+        + (kept && total ? ` (${kept} of ${total} analysed)` : '');
+    }
+    host.innerHTML = ex.groups.map(g => {
+      const items = (g.accessions || []).map(a => {
+        const why = g.detail && g.detail[a];
+        const short = a.replace(/\.\d+$/, '');
+        return why
+          ? `<span title="${why.replace(/"/g, '&quot;')}" style="text-decoration:underline dotted;cursor:help;">${short}</span>`
+          : short;
+      }).join(', ');
+      return `<div style="margin-bottom:6px;">
+          <div style="font-weight:600;color:#a00;">${g.reason} &middot; ${g.count}</div>
+          <div style="color:#777;word-break:break-word;font-family:ui-monospace,Menlo,monospace;font-size:0.95em;">${items}</div>
+        </div>`;
+    }).join('');
+  };
+
 async function loadHomoplasyData() {
   try {
     // Revalidate: rewritten by the analysis pipeline on every run.
@@ -1166,6 +1205,7 @@ async function loadHomoplasyData() {
     const data = await response.json();
     const events = data.events || data;
     homoplasyMetadata = data.metadata || {};
+    renderExclusions();
 
     // Add IDs and normalize field names
     allHomoplasyEvents = events.map((event, idx) => ({

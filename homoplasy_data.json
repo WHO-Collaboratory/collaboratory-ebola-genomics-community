@@ -5,6 +5,114 @@
   "tree": "asr_run.treefile",
   "alignment": "aln_ref_20261008_071730.masked.fasta",
   "n_sequences_before_filter": 876,
+  "excluded": {
+   "total": 81,
+   "groups": [
+    {
+     "reason": "Failed sequence QC (>15% missing data)",
+     "count": 77,
+     "accessions": [
+      "PP_00711T3.3",
+      "PP_0076526.1",
+      "PP_00765BN.1",
+      "PP_00765DJ.1",
+      "PP_0076625.1",
+      "PP_007A2K0.1",
+      "PP_007A2UG.1",
+      "PP_007A4F7.1",
+      "PP_007A4TG.1",
+      "PP_007A52Y.1",
+      "PP_007A58L.1",
+      "PP_007A5AG.1",
+      "PP_007A5G4.1",
+      "PP_007A5NR.1",
+      "PP_007A5TF.1",
+      "PP_007A5X7.1",
+      "PP_007AEFX.1",
+      "PP_007AFLK.1",
+      "PP_007AFMH.1",
+      "PP_007AFNF.1",
+      "PP_007AFQB.1",
+      "PP_007AFT5.1",
+      "PP_007BWNY.1",
+      "PP_007BWVJ.1",
+      "PP_007BXJ5.1",
+      "PP_007BY23.1",
+      "PP_007BY31.1",
+      "PP_007BYK2.1",
+      "PP_007BYNW.1",
+      "PP_007BYPU.1",
+      "PP_007BYTL.1",
+      "PP_007BYUJ.1",
+      "PP_007BZ06.1",
+      "PP_007BZ6U.1",
+      "PP_007C50Y.1",
+      "PP_007C5TB.1",
+      "PP_007C61V.1",
+      "PP_007C68F.1",
+      "PP_007C6RE.1",
+      "PP_007C78E.1",
+      "PP_007C7B8.1",
+      "PP_007C7KR.1",
+      "PP_007C7NK.1",
+      "PP_007ERTM.1",
+      "PP_007ERZ9.1",
+      "PP_007ES9P.1",
+      "PP_007ESAM.1",
+      "PP_007ESCH.1",
+      "PP_007ESUJ.1",
+      "PP_007EVRM.1",
+      "PP_007EW2Z.1",
+      "PP_007EW6R.1",
+      "PP_007EXTF.1",
+      "PP_007EYCB.1",
+      "PP_007JZA5.1",
+      "PP_007JZKL.1",
+      "PP_007JZU2.1",
+      "PP_007JZXW.1",
+      "PP_007K03G.1",
+      "PP_007K06A.1",
+      "PP_007K094.1",
+      "PP_007LT2P.2",
+      "PP_007LTQC.1",
+      "PP_007LU2N.1",
+      "PP_007LU5G.1",
+      "PP_007LUFW.1",
+      "PP_007LUT5.1",
+      "PP_00803VY.1",
+      "PP_008043G.1",
+      "PP_00804T1.1",
+      "PP_00804YR.1",
+      "PP_008055B.1",
+      "PP_00805DV.1",
+      "PP_00805HL.1",
+      "PP_00805NA.1",
+      "PP_00805WU.1",
+      "PP_008060L.1"
+     ]
+    },
+    {
+     "reason": "Phylogenetic outliers excluded from the tree",
+     "count": 2,
+     "accessions": [
+      "PP_0075Z66",
+      "PP_00764QW"
+     ],
+     "detail": {
+      "PP_00764QW": "Nextclade QC: bad; clock outlier (probable Nanopore GP2 sequencing artefacts)",
+      "PP_0075Z66": "Nextclade QC: mediocre; clock outlier; VP35 frameshift"
+     }
+    },
+    {
+     "reason": "Rooting outgroups (used to root the tree, not displayed)",
+     "count": 2,
+     "accessions": [
+      "NC_014373.1",
+      "PP_006X68B.1"
+     ]
+    }
+   ]
+  },
   "max_seq_missing": 0.15,
   "max_site_missing": 0.1,
   "outgroup": "NC_014373.1",
@@ -23,7 +131,7 @@
    "synonymous": 3
   },
   "caveat": "Most recurrence in this dataset is carried by terminal branches and is concentrated in transitions, consistent with mutational hotspots and sequencing error rather than selection. Recurrent substitutions are depleted, not enriched, for protein-changing changes. Branch support was not estimated, and the tree is heavily polytomised, so the number of independent origins is an upper bound.",
-  "timestamp": "2026-10-08"
+  "timestamp": "2026-10-09"
  },
  "events": [
   {

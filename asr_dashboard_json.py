@@ -28,6 +28,50 @@ from collections import Counter
 
 TRANSITIONS = {("A", "G"), ("G", "A"), ("C", "T"), ("T", "C")}
 
+# Phylogenetic outliers dropped from the displayed tree. Keep in step with
+# TREE_EXCLUSIONS in dashboard.html and QC_EXCLUSIONS in generate_local_tree.py.
+TREE_EXCLUSIONS = {
+    "PP_00764QW": "Nextclade QC: bad; clock outlier "
+                  "(probable Nanopore GP2 sequencing artefacts)",
+    "PP_0075Z66": "Nextclade QC: mediocre; clock outlier; VP35 frameshift",
+}
+
+
+def exclusions(meta):
+    """
+    Group every genome left out of the displayed results, with the reason.
+
+    Three distinct things get left out and the dashboard previously named only
+    the second, which understated it by two orders of magnitude.
+    """
+    dropped = meta.get("dropped_sequences") or []
+    pct = meta.get("max_seq_missing")
+    groups = []
+    if dropped:
+        groups.append({
+            "reason": "Failed sequence QC"
+                      + (f" (>{pct:.0%} missing data)" if pct else ""),
+            "count": len(dropped),
+            "accessions": sorted(dropped),
+        })
+    groups.append({
+        "reason": "Phylogenetic outliers excluded from the tree",
+        "count": len(TREE_EXCLUSIONS),
+        "accessions": sorted(TREE_EXCLUSIONS),
+        "detail": TREE_EXCLUSIONS,
+    })
+    outgroup = meta.get("outgroup")
+    roots = sorted({a for a in ([outgroup] if outgroup else []) + ["PP_006X68B.1"]})
+    groups.append({
+        "reason": "Rooting outgroups (used to root the tree, not displayed)",
+        "count": len(roots),
+        "accessions": roots,
+    })
+    return {
+        "total": sum(g["count"] for g in groups),
+        "groups": groups,
+    }
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -93,6 +137,7 @@ def main():
             "tree": meta["tree"],
             "alignment": meta["alignment"],
             "n_sequences_before_filter": meta.get("n_sequences_before_filter"),
+            "excluded": exclusions(meta),
             "max_seq_missing": meta.get("max_seq_missing"),
             "max_site_missing": meta.get("max_site_missing"),
             "outgroup": meta["outgroup"],

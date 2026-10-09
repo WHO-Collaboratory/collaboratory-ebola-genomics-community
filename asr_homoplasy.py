@@ -468,6 +468,9 @@ def main():
                 "max_site_missing": posmap["max_site_missing"],
                 "n_sequences_before_filter": (
                     posmap["n_sequences"] + len(posmap["dropped_sequences"])),
+                # Sequences the QC filter removed, so the dashboard can say
+                # which genomes are not represented in these results.
+                "dropped_sequences": posmap["dropped_sequences"],
                 "tree": tree_path,
                 "outgroup": posmap["outgroup"],
                 "n_sequences": posmap["n_sequences"],
