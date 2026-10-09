@@ -230,30 +230,52 @@
 
 <main>
 
-  <!-- Main grid: Pathoplexus left, charts + tree right -->
-  <div class="grid" style="margin-bottom:20px; align-items:start;">
+  <!-- Main grid: 3 columns - Sequences, Tree, Homoplasy -->
+  <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:20px;margin-bottom:20px;align-items:start;">
 
     <!-- Left: Pathoplexus sequence table -->
-    <div id="left-col" class="card" style="display:flex;flex-direction:column;overflow:hidden;">
+    <div id="left-col" class="card" style="display:flex;flex-direction:column;overflow:hidden;height:750px;">
       <div class="card-header">
         <h2>Sequences in public domain</h2>
         <a href="https://pathoplexus.org/ebola-bdbv/search" target="_blank">View on Pathoplexus ↗</a>
       </div>
       <div class="card-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;padding-top:8px !important;">
         <div id="seq-status">Loading sequence data…</div>
-        <div id="seq-table-container" style="flex:1;overflow-y:auto;overflow-x:auto;"></div>
+        <div id="seq-table-container" style="flex:1;overflow-y:auto;overflow-x:auto;scroll-behavior:smooth;"></div>
       </div>
+      <style>
+        #seq-table-container {
+          scrollbar-width: thin;
+          scrollbar-color: #0066cc #f0f0f0;
+        }
+        #seq-table-container::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        #seq-table-container::-webkit-scrollbar-track {
+          background: #f0f0f0;
+        }
+        #seq-table-container::-webkit-scrollbar-thumb {
+          background: #0066cc;
+          border-radius: 4px;
+        }
+        #seq-table-container::-webkit-scrollbar-thumb:hover {
+          background: #004499;
+        }
+      </style>
     </div>
 
-    <!-- Right: charts + PearTree stacked -->
-    <div id="right-col" style="display:flex;flex-direction:column;gap:20px;">
-
-      <div class="card">
+    <!-- Middle: Tree -->
+    <div class="card" style="display:flex;flex-direction:column;height:750px;">
         <div class="card-header">
           <h2>2026 Outbreak Phylogeny</h2>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <span id="peartree-status" style="font-size:0.8rem;color:#666;">Loading tree from Nextstrain…</span>
             <button id="btn-toggle-rtt" onclick="togglePearTreeRTT()" style="display:none;padding:3px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.75rem;">Root to tip</button>
+            <select id="tree-source-select" onchange="switchTreeSource(this.value)" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.75rem;">
+              <option value="nextstrain">Nextstrain</option>
+              <option value="local">Local</option>
+            </select>
             <div id="tree-search" style="display:none;align-items:center;gap:4px;">
               <input id="tree-search-input" type="text" placeholder="Search accession…" oninput="searchTree(this.value)" onkeydown="if(event.key==='Escape'){this.value='';searchTree('');}" style="padding:3px 8px;font-size:0.75rem;border:1px solid #ddd;border-radius:6px;width:160px;outline:none;">
               <button onclick="document.getElementById('tree-search-input').value='';searchTree('');" style="padding:3px 7px;font-size:0.75rem;border:1px solid #ddd;border-radius:6px;background:#fff;color:#999;cursor:pointer;line-height:1;">✕</button>
@@ -264,31 +286,103 @@
               <button id="btn-colour-province" onclick="setTreeColour('province')" style="padding:3px 10px;border:none;background:#fff;color:#555;cursor:pointer;font-size:0.75rem;">Province</button>
               <button id="btn-colour-loc"      onclick="setTreeColour('location')" style="padding:3px 10px;border:none;background:#fff;color:#555;cursor:pointer;font-size:0.75rem;">Location</button>
               <button id="btn-colour-epiweek"  onclick="setTreeColour('epiweek')"  style="padding:3px 10px;border:none;background:#fff;color:#555;cursor:pointer;font-size:0.75rem;">Epi Week</button>
+              <button id="btn-clear-highlight" onclick="setTreeColour('none')"       style="padding:3px 10px;border:none;background:#fff;color:#555;cursor:pointer;font-size:0.75rem;">None</button>
             </div>
           </div>
         </div>
-        <div id="bdbv-tree-2026" style="height:560px;"></div>
-        <div style="padding:6px 16px 10px;font-size:0.75rem;color:#666;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">
+        <div id="bdbv-tree-2026" style="flex:1;overflow:hidden;"></div>
+        <div style="padding:6px 16px 10px;font-size:0.75rem;color:#666;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;flex-shrink:0;">
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e05c3a;vertical-align:middle;margin-right:4px;"></span><span style="color:#e05c3a;font-weight:700;">★</span> Uploaded in the last 7 days</span>
           <span style="color:#999;font-style:italic;">2026 outbreak subtree · rooted using 2007 BDBV strain (not shown)</span>
         </div>
-        <div style="padding:6px 16px 10px;font-size:0.7rem;color:#a00;border-top:1px solid #e8e8e8;line-height:1.4;">
-          <span style="font-weight:600;">Excluded from tree:</span> <span id="tree-exclusions-footnote"></span>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2>Genomes over time</h2>
-        </div>
-        <div class="card-body">
-          <canvas id="genomesChart"></canvas>
-        </div>
-      </div>
-
-
+        <details id="tree-exclusions" style="padding:6px 16px 10px;font-size:0.7rem;color:#a00;border-top:1px solid #e8e8e8;line-height:1.4;flex-shrink:0;">
+          <summary style="cursor:pointer;font-weight:600;outline:none;">
+            <span id="tree-exclusions-summary">Excluded from analysis</span>
+          </summary>
+          <div id="tree-exclusions-footnote" style="margin-top:6px;"></div>
+        </details>
     </div>
 
+    <!-- Right: Homoplasy Analysis Panel - skinny column -->
+    <div class="card" style="display:flex;flex-direction:column;height:750px;">
+      <div class="card-header" style="padding:10px 12px;">
+        <h2 style="margin:0;font-size:0.9rem;">Convergent Mutations</h2>
+        <p id="homoplasy-count" style="font-size:0.65rem;color:#666;margin:2px 0 0 0;">Loading...</p>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;overflow:hidden;padding:6px !important;">
+
+        <!-- Compact filters -->
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;flex-shrink:0;">
+          <select id="homoplasy-evidence-filter" onchange="filterHomoplasyEvents()" style="padding:3px 4px;border:1px solid #ccc;border-radius:3px;font-size:0.7rem;color:#222;background:white;">
+            <option value="internal">Independent origins (2+ descendants)</option>
+            <option value="">Include single-sequence events</option>
+          </select>
+          <select id="homoplasy-gene-filter" onchange="filterHomoplasyEvents()" style="padding:3px 4px;border:1px solid #ccc;border-radius:3px;font-size:0.7rem;color:#222;background:white;">
+            <option value="">All genes</option>
+            <option value="GP">GP</option>
+            <option value="NP">NP</option>
+            <option value="L">L</option>
+            <option value="VP35">VP35</option>
+            <option value="VP40">VP40</option>
+            <option value="VP30">VP30</option>
+            <option value="VP24">VP24</option>
+            <option value="intergenic">Intergenic</option>
+          </select>
+          <select id="homoplasy-type-filter" onchange="filterHomoplasyEvents()" style="padding:3px 4px;border:1px solid #ccc;border-radius:3px;font-size:0.7rem;color:#222;background:white;">
+            <option value="">All types</option>
+            <option value="non-synonymous">Non-syn</option>
+            <option value="synonymous">Syn</option>
+          </select>
+          <input type="text" id="homoplasy-search" placeholder="Pos…" oninput="filterHomoplasyEvents()" style="padding:3px 4px;border:1px solid #ccc;border-radius:3px;font-size:0.7rem;color:#222;background:white;box-sizing:border-box;">
+          <select id="homoplasy-sort" onchange="sortHomoplasyEvents()" style="padding:3px 4px;border:1px solid #ccc;border-radius:3px;font-size:0.7rem;color:#222;background:white;">
+            <option value="carriers">Most carriers</option>
+            <option value="carriers-asc">Rare</option>
+            <option value="position">Position</option>
+          </select>
+        </div>
+
+        <!-- Events list - scrollable -->
+        <div id="homoplasy-list" style="border:1px solid #ccc;border-radius:3px;overflow-y:auto;background:#fafafa;flex:1;margin-bottom:4px;">
+          <div style="padding:6px;text-align:center;color:#666;font-size:0.75rem;">Loading…</div>
+        </div>
+
+        <!-- Event details -->
+        <div id="homoplasy-details" style="padding:4px 6px;background:#e8f4f8;border-radius:3px;border-left:2px solid #0066cc;font-size:0.7rem;line-height:1.3;color:#222;max-height:80px;overflow-y:auto;flex-shrink:0;">
+          <div id="homoplasy-details-content" style="color:#666;">Select event</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Timeline chart - full width below -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h2>Genomes over time</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:16px;">
+
+      <!-- Left: Genome counts over time -->
+      <div style="border:1px solid #ddd;border-radius:4px;padding:12px;background:#fafafa;display:flex;flex-direction:column;">
+        <div style="font-size:0.9rem;font-weight:600;color:#222;margin-bottom:12px;">Sequencing volume</div>
+        <div style="height:180px;flex:1;position:relative;">
+          <canvas id="genomesChart" style="width:100%;height:100%;"></canvas>
+        </div>
+      </div>
+
+      <!-- Right: Selected mutation frequency over time -->
+      <div style="border:1px solid #ddd;border-radius:4px;padding:12px;background:#fafafa;display:flex;flex-direction:column;">
+        <div style="font-size:0.9rem;font-weight:600;color:#222;margin-bottom:12px;">
+          <span id="mutation-freq-title">Select mutation to view frequency</span>
+        </div>
+        <div style="height:180px;flex:1;position:relative;">
+          <canvas id="mutationFreqChart" style="width:100%;height:100%;"></canvas>
+        </div>
+        <div style="font-size:0.75rem;color:#666;margin-top:8px;text-align:center;" id="mutation-freq-note"></div>
+      </div>
+
+    </div>
   </div>
 
 </main>
@@ -310,6 +404,12 @@
 </footer>
 
 <script>
+  // Metadata from homoplasy_data.json, populated by loadHomoplasyData() in a
+  // later script block. Declared here with var so the tree code below can read
+  // it: a top-level `let` in the later block would leave it in the temporal
+  // dead zone and throw ReferenceError when the local tree is selected.
+  var homoplasyMetadata = {};
+
   // Known sequences from the 2026 outbreak (from Virological post 2026-05-28)
   // This is used as a fallback if the Pathoplexus API is unavailable.
   // Static fallback — used only if the LAPIS API is unavailable.
@@ -368,8 +468,8 @@
     const rows = sequences.map(s => {
       const isNew = s.firstReleased && s.firstReleased !== "—" && s.firstReleased >= cutoff;
       return `
-      <tr class="${isNew ? 'row-new' : ''}">
-        <td><a href="https://pathoplexus.org/seq/${s.id}" target="_blank">${s.id}</a>${isNew ? ' <span class="tag tag-new">New</span>' : ''}</td>
+      <tr class="${isNew ? 'row-new' : ''}" style="cursor:pointer;" onmouseover="this.style.background='#f0f0f0';" onmouseout="this.style.background='';" onclick="selectSequenceRow(this, '${s.id}')">
+        <td><a href="https://pathoplexus.org/seq/${s.id}" target="_blank" style="color:inherit;text-decoration:none;" onclick="event.stopPropagation();">${s.id}</a>${isNew ? ' <span class="tag tag-new">New</span>' : ''}</td>
         <td>${s.sample}</td>
         <td>${s.date}</td>
         <td>${countryTag[s.country] || s.country}</td>
@@ -769,14 +869,15 @@
       const mrcaDiv = mrca.node_attrs?.div ?? 0;
       const nexus = `#NEXUS\nBEGIN TREES;\nTREE outbreak_2026 = [&R] ${toNewick(mrcaPruned, mrcaDiv)};\nEND;\n`;
       window._bdbvNexus = nexus;
+      window._bdbvNexusOriginal = nexus;  // Save for tree source switching
       window._bdbvMeta  = data.meta;
       const tipCount2026 = (nexus.match(/\[&accession=/g) || []).length;
       document.getElementById('peartree-status').innerHTML =
         `${tipCount2026} outbreak genomes · live from Nextstrain (updated ${data.meta?.updated || 'recently'}) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
 
-      // Update exclusions footnote
-      const exclusionAccs = Object.keys(TREE_EXCLUSIONS).join(', ');
-      document.getElementById('tree-exclusions-footnote').innerHTML = `${exclusionAccs} due to QC fail`;
+      // Exclusions are rendered from homoplasy_data.json, which knows the
+      // full set (QC-failed sequences as well as these tree outliers).
+      renderExclusions();
     } catch (err) {
       document.getElementById('peartree-status').textContent = `Could not build tree: ${err.message}`;
       console.warn('Tree build error:', err);
@@ -805,6 +906,158 @@
 <script type="module">
   // Import PearTree directly — bypasses the shim entirely
   import { embed } from './peartree/js/peartree.js';
+
+  let _currentTreeSource = 'nextstrain';
+  let _localTreeData = null;
+
+  /**
+   * Add the "new" styling to tips of a pre-built Newick: a star in the label
+   * and user_colour, which is what tipColourBy: 'user_colour' reads and what
+   * the New button in the colour toggle keys off. Mirrors the inline handling
+   * in toNewick() for the Nextstrain tree.
+   *
+   * Tips look like:  'PP_006XCJJ · Hoima · 05-14'[&accession="PP_006XCJJ",...]
+   * Single quotes inside a Newick label are escaped by doubling them.
+   */
+  function markNewTips(newick) {
+    const isNew = window._bdbvNewAccessions;
+    if (!isNew || !isNew.size || !newick) return newick;
+    return newick.replace(
+      /'((?:[^']|'')*)'\[&([^\]]*)\]/g,
+      (whole, label, attrs) => {
+        const m = /accession="([^"]+)"/.exec(attrs);
+        if (!m) return whole;
+        const acc = m[1].replace(/\.\d+$/, '');
+        if (!isNew.has(acc)) return whole;
+        const newLabel = label.startsWith('★ ') ? label : '★ ' + label;
+        const newAttrs = /user_colour=/.test(attrs)
+          ? attrs
+          : attrs + ',user_colour="#e05c3a"';
+        return `'${newLabel}'[&${newAttrs}]`;
+      }
+    );
+  }
+
+  window.switchTreeSource = async function(source) {
+    console.log(`[switchTreeSource] Called with source=${source}`);
+    _currentTreeSource = source;
+    document.getElementById('tree-source-select').value = source;
+
+    let treeData;
+
+    if (source === 'local') {
+      if (!_localTreeData) {
+        try {
+          console.log('[switchTreeSource] Loading local_tree.nwk...');
+          // Revalidate rather than take a cached copy: local_tree.nwk is
+          // rewritten every time the analysis pipeline runs, and a stale one
+          // silently shows an out-of-date tree alongside current mutation data.
+          const resp = await fetch('local_tree.nwk', { cache: 'no-cache' });
+          if (resp.ok) {
+            const newick = (await resp.text()).trim();
+            _localTreeData = newick;
+            console.log(`[switchTreeSource] Loaded local tree, length=${_localTreeData.length}`);
+          } else {
+            console.error('Local tree not available:', resp.status);
+            document.getElementById('tree-source-select').value = 'nextstrain';
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to load local tree:', e);
+          document.getElementById('tree-source-select').value = 'nextstrain';
+          return;
+        }
+      }
+      // Mark recently-released genomes. The Nextstrain newick is built in the
+      // browser and gets this inline (see toNewick); the local one is written
+      // ahead of time by generate_local_tree.py, so apply it here instead of
+      // baking it into the file — "new" is relative to today and would go
+      // stale between pipeline runs.
+      treeData = markNewTips(_localTreeData);
+    } else {
+      treeData = window._bdbvNexusOriginal;
+      console.log(`[switchTreeSource] Using Nextstrain tree, available=${!!treeData}`);
+    }
+
+    if (!treeData) {
+      console.error('Tree data not available for source:', source);
+      return;
+    }
+
+    console.log(`[switchTreeSource] Embedding tree, data length=${treeData.length}`);
+    const container = document.getElementById('bdbv-tree-2026');
+
+    // Clear old tree
+    if (window._bdbvTreeCtrl) {
+      try { window._bdbvTreeCtrl.destroy?.(); } catch (e) {}
+    }
+
+    container.innerHTML = '';
+    window._bdbvTreeCtrl = null;
+
+    try {
+      // Wrap Newick in NEXUS if needed
+      let treeToEmbed = treeData;
+      if (source === 'local' && !treeData.startsWith('#NEXUS')) {
+        treeToEmbed = `#NEXUS\nBEGIN TREES;\nTREE local_tree = ${treeData};\nEND;\n`;
+      }
+
+      const ctrl = await embed({
+        container: 'bdbv-tree-2026',
+        tree: treeToEmbed,
+        filename: source === 'local' ? 'local_tree.nexus' : 'bdbv_2026.nexus',
+        height: '560px',
+        settings: {
+          tipLabelShow: 'names',
+          tipLabelAlign: 'off',
+          tipLabelFontSize: '10',
+          tipLabelSpacing: '4',
+          paddingRight: '220',
+          axisShow: 'forward',
+          axisMajorInterval: 'auto',
+          tipColourBy: 'user_colour',
+          axisDateAnnotation: 'date',
+          annotationPalettes: { epiweek: 'Blue-Orange' },
+        },
+        ui: {
+          theme: 'light',
+          toolbar: false,
+          palette: false,
+          openTree: false,
+          import: false,
+          rtt: true,
+          dataTable: false,
+          statusBar: false,
+        },
+      });
+      window._bdbvTreeCtrl = ctrl;
+
+      // Update status text based on tree source
+      const tipCount = (treeToEmbed.match(/\[&accession=/g) || []).length;
+      if (source === 'local') {
+        document.getElementById('peartree-status').innerHTML =
+          `${tipCount} outbreak genomes · locally inferred tree (IQ-Tree`
+          + (homoplasyMetadata && homoplasyMetadata.n_sequences_before_filter
+              ? `, ${homoplasyMetadata.n_sequences_before_filter} submitted, `
+                + `${homoplasyMetadata.n_sequences} passing QC`
+              : '')
+          + `) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
+      } else {
+        document.getElementById('peartree-status').innerHTML =
+          `${tipCount} outbreak genomes · live from Nextstrain (updated 2026-09-10) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
+      }
+      // Bring tree canvas to front by setting z-index on container
+      const container = document.getElementById('bdbv-tree-2026');
+      if (container) {
+        container.style.position = 'relative';
+        container.style.zIndex = '10';
+      }
+      console.log(`[switchTreeSource] Successfully switched to ${source} tree`);
+    } catch (err) {
+      console.error('[switchTreeSource] embed() failed:', err);
+      container.innerHTML = `<div style="padding:20px;color:red;">Error loading tree: ${err.message}</div>`;
+    }
+  }
 
   // Wait for fetchTree() to populate window._bdbvNexus
   async function initPearTree() {
@@ -903,26 +1156,432 @@
     });
   }
 
+  let _currentTreeMode = 'new';  // Track current mode
+
   function setTreeColour(mode) {
-    const colourBy = { new: 'user_colour', country: 'country', province: 'province', location: 'location', epiweek: 'epiweek' }[mode] || 'country';
+    const btns = { new: 'btn-colour-new', country: 'btn-colour-country', province: 'btn-colour-province', location: 'btn-colour-loc', epiweek: 'btn-colour-epiweek', none: 'btn-clear-highlight' };
 
-    ['tip-colour-by', 'label-colour-by'].forEach(id => {
-      const select = document.getElementById(id);
-      if (select) {
-        select.value = colourBy;
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
+    if (mode !== 'none') {
+      // Regular color mode
+      _currentTreeMode = mode;
+      const colourBy = { new: 'user_colour', country: 'country', province: 'province', location: 'location', epiweek: 'epiweek' }[mode] || 'country';
 
-    const btns = { new: 'btn-colour-new', country: 'btn-colour-country', province: 'btn-colour-province', location: 'btn-colour-loc', epiweek: 'btn-colour-epiweek' };
+      ['tip-colour-by', 'label-colour-by'].forEach(id => {
+        const select = document.getElementById(id);
+        if (select) {
+          select.value = colourBy;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+    }
+    // If mode is 'none', don't change coloring - just leave tree as-is
+
+    // Update button styling
     Object.entries(btns).forEach(([m, id]) => {
       const el = document.getElementById(id);
       if (!el) return;
       const active = m === mode;
-      el.style.background = active ? (m === 'new' ? '#e05c3a' : '#005a8e') : '#fff';
+      el.style.background = active ? '#e05c3a' : '#fff';
       el.style.color      = active ? '#fff' : '#555';
     });
   }
 </script>
+
+<script>
+// Load and manage homoplasy data
+let allHomoplasyEvents = [];
+let filteredEvents = [];
+
+// ── Excluded-genome panel ────────────────────────────────────────────────
+  // Driven by homoplasy_data.json metadata.excluded, which groups every genome
+  // left out of the displayed results by reason. Safe to call before that file
+  // has loaded; loadHomoplasyData() calls it again once it has.
+  window.renderExclusions = function renderExclusions() {
+    const host = document.getElementById('tree-exclusions-footnote');
+    const summary = document.getElementById('tree-exclusions-summary');
+    if (!host) return;
+    const ex = homoplasyMetadata && homoplasyMetadata.excluded;
+    if (!ex || !ex.groups) {
+      if (summary) summary.textContent = 'Excluded from analysis';
+      host.innerHTML = '<span style="color:#888;">Not yet loaded.</span>';
+      return;
+    }
+    const kept = homoplasyMetadata.n_sequences;
+    const total = homoplasyMetadata.n_sequences_before_filter;
+    if (summary) {
+      // Lead with how many genomes the results rest on. ex.total also counts
+      // genomes that were analysed but kept off the tree, so it is not the
+      // number missing from the analysis.
+      summary.textContent =
+        (kept && total ? `${kept} of ${total} genomes analysed` : 'Excluded genomes')
+        + ` \u00b7 ${ex.total} excluded`;
+    }
+    const masked = homoplasyMetadata.masked_sites || [];
+    const maskedNote = masked.length
+      ? `<div style="margin-bottom:6px;color:#777;">Masked site${masked.length === 1 ? '' : 's'}: `
+        + `<span style="font-family:ui-monospace,Menlo,monospace;">${masked.join(', ')}</span></div>`
+      : '';
+    host.innerHTML = maskedNote + ex.groups.map(g => {
+      const items = (g.accessions || []).map(a => {
+        const why = g.detail && g.detail[a];
+        const short = a.replace(/\.\d+$/, '');
+        return why
+          ? `<span title="${why.replace(/"/g, '&quot;')}" style="text-decoration:underline dotted;cursor:help;">${short}</span>`
+          : short;
+      }).join(', ');
+      return `<div style="margin-bottom:6px;">
+          <div style="font-weight:600;color:#a00;">${g.reason} &middot; ${g.count}</div>
+          <div style="color:#777;word-break:break-word;font-family:ui-monospace,Menlo,monospace;font-size:0.95em;">${items}</div>
+        </div>`;
+    }).join('');
+  };
+
+async function loadHomoplasyData() {
+  try {
+    // Revalidate: rewritten by the analysis pipeline on every run.
+    const response = await fetch('homoplasy_data.json', { cache: 'no-cache' });
+    if (!response.ok) {
+      throw new Error(`homoplasy_data.json: HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    const events = data.events || data;
+    homoplasyMetadata = data.metadata || {};
+    renderExclusions();
+
+    // Add IDs and normalize field names
+    allHomoplasyEvents = events.map((event, idx) => ({
+      ...event,
+      id: idx,
+      type: event.mutation_type,  // Map mutation_type to type for compatibility
+      aa_change: event.protein_change,  // Map protein_change to aa_change
+      all_carriers: event.all_carriers || event.examples || []  // Use all_carriers from JSON if available
+    }));
+
+    filteredEvents = [...allHomoplasyEvents];
+
+    // Update the count in header
+    const countElement = document.getElementById('homoplasy-count');
+    if (countElement) {
+      const strong = allHomoplasyEvents.filter(e => e.evidence === 'internal').length;
+      const n = homoplasyMetadata.n_sequences;
+      countElement.textContent =
+        `${strong} with independent origins · ${allHomoplasyEvents.length} recurrent sites`
+        + (n ? ` · ${n} genomes` : '');
+      countElement.title = homoplasyMetadata.method || '';
+    }
+
+    // Set default sort to "carriers" and sort
+    document.getElementById('homoplasy-sort').value = 'carriers';
+    filterHomoplasyEvents();
+  } catch (error) {
+    document.getElementById('homoplasy-list').innerHTML =
+      '<div style="padding:16px;text-align:center;color:#a00;">Error loading homoplasy data</div>';
+    console.error('Error loading homoplasy data:', error);
+  }
+}
+
+function filterHomoplasyEvents() {
+  const evidenceEl = document.getElementById('homoplasy-evidence-filter');
+  const evidenceFilter = evidenceEl ? evidenceEl.value : '';
+  const geneFilter = document.getElementById('homoplasy-gene-filter').value;
+  const typeFilter = document.getElementById('homoplasy-type-filter').value;
+  const searchTerm = document.getElementById('homoplasy-search').value.toLowerCase();
+
+  filteredEvents = allHomoplasyEvents.filter(event => {
+    const evidenceMatch = !evidenceFilter || event.evidence === evidenceFilter;
+    const geneMatch = !geneFilter || event.gene === geneFilter;
+    const typeMatch = !typeFilter || event.type === typeFilter || (typeFilter === 'non-synonymous' && event.type === 'non-synonymous');
+    const searchMatch = !searchTerm ||
+      event.position.toString().includes(searchTerm) ||
+      (event.gene && event.gene.toLowerCase().includes(searchTerm));
+
+    return evidenceMatch && geneMatch && typeMatch && searchMatch;
+  });
+
+  sortHomoplasyEvents();
+}
+
+function sortHomoplasyEvents() {
+  const sortBy = document.getElementById('homoplasy-sort').value;
+
+  if (sortBy === 'carriers') {
+    filteredEvents.sort((a, b) => (b.num_sequences || b.num_carriers) - (a.num_sequences || a.num_carriers));
+  } else if (sortBy === 'carriers-asc') {
+    filteredEvents.sort((a, b) => (a.num_sequences || a.num_carriers) - (b.num_sequences || b.num_carriers));
+  } else {
+    filteredEvents.sort((a, b) => a.position - b.position);
+  }
+
+  displayHomoplasyEvents();
+}
+
+function displayHomoplasyEvents() {
+  const container = document.getElementById('homoplasy-list');
+
+  if (filteredEvents.length === 0) {
+    container.innerHTML = '<div style="padding:16px;text-align:center;color:#999;">No events match filters</div>';
+    return;
+  }
+
+  const html = filteredEvents.map(event => `
+    <div style="padding:12px 14px;border-bottom:1px solid #ddd;cursor:pointer;background:white;transition:background 0.2s;"
+         onmouseover="this.style.background='#e8f4f8';"
+         onmouseout="this.style.background='white';"
+         onclick="showHomoplasyDetailsWithChart(${event.id})">
+      <div style="font-weight:700;color:#0066cc;font-size:0.9rem;">
+        Position ${event.position} · ${event.ref_base}→${event.alt_base}
+        <span style="font-size:0.7rem;background:#0066cc;color:white;padding:2px 6px;border-radius:2px;margin-left:6px;font-weight:600;">n=${event.num_sequences || event.num_carriers}</span>
+        ${event.evidence === 'internal'
+          ? `<span title="Same substitution on ${event.recurrence_internal} internal branches; each origin left 2+ descendants" style="font-size:0.65rem;background:#1a7f37;color:white;padding:2px 5px;border-radius:2px;margin-left:4px;font-weight:600;">${event.recurrence_internal} origins</span>`
+          : `<span title="Recurrence rests on changes private to single sequences; not distinguishable from sequencing error" style="font-size:0.65rem;background:#8a6d3b;color:white;padding:2px 5px;border-radius:2px;margin-left:4px;font-weight:600;">unsupported</span>`}
+      </div>
+      <div style="font-size:0.8rem;color:#333;margin-top:4px;">
+        <span style="font-weight:600;color:#005a99;">${event.gene || 'intergenic'}</span> · <span style="color:#555;">${event.mutation_type || event.type || '—'}</span>
+        ${event.protein_change || event.aa_change ? '<div style="margin-top:3px;color:#d9534f;font-weight:600;">→ ' + (event.protein_change || event.aa_change) + '</div>' : ''}
+      </div>
+    </div>
+  `).join('');
+
+  container.innerHTML = html;
+}
+
+function showHomoplasyDetails(eventId) {
+  const event = allHomoplasyEvents.find(e => e.id === eventId);
+  if (!event) return;
+
+  const detailsPanel = document.getElementById('homoplasy-details');
+  const content = document.getElementById('homoplasy-details-content');
+
+  let html = `
+    <div style="color:#222;"><strong style="color:#0066cc;">Position:</strong> <code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;font-family:monospace;">${event.position}</code> (${event.ref_base}→${event.alt_base})</div>
+    <div style="color:#222;margin-top:6px;"><strong style="color:#0066cc;">Gene:</strong> ${event.gene || 'intergenic'} <span style="color:#666;">(${event.protein || '—'})</span></div>
+    <div style="color:#222;margin-top:6px;"><strong style="color:#0066cc;">Type:</strong> ${event.mutation_type || event.type || '—'}${event.protein_change || event.aa_change ? ' · <strong style="color:#d9534f;">' + (event.protein_change || event.aa_change) + '</strong>' : ''}</div>
+    <div style="color:#222;margin-top:6px;"><strong style="color:#0066cc;">Sequences:</strong> <strong>${event.num_sequences || event.num_carriers}</strong> with this mutation (highlighted on tree)</div>
+    <div style="color:#222;margin-top:6px;"><strong style="color:#0066cc;">Recurrence:</strong> same substitution on <strong>${event.recurrence}</strong> branch(es), of which <strong>${event.recurrence_internal}</strong> internal.</div>
+    <div style="color:#222;margin-top:6px;"><strong style="color:#0066cc;">Consistency index:</strong> ${event.consistency_index} <span style="color:#666;">(1.0 = single origin, lower = more homoplasy)</span></div>
+    <div style="margin-top:8px;padding:8px;border-radius:3px;font-size:0.8rem;${event.evidence === 'internal'
+        ? 'background:#e6f4ea;color:#1a4731;'
+        : 'background:#fcf3e3;color:#6b5320;'}">
+      ${event.evidence === 'internal'
+        ? 'Arose on ' + event.recurrence_internal + ' internal branches, so each origin left two or more descendants. This is convergence proper. Recurrence alone is not evidence of selection.'
+        : 'Recurrence here rests on changes private to single sequences, which cannot be distinguished from sequencing or consensus-calling error. Not evidence of convergent evolution.'}
+    </div>
+  `;
+
+  content.innerHTML = html;
+
+  // Highlight ALL carriers on tree (not just examples)
+  highlightCarriersOnTree(event.all_carriers || event.examples);
+}
+
+function selectSequenceRow(rowElement, seqId) {
+  // Clear all previous highlights
+  const allRows = document.querySelectorAll('#seq-table-container tbody tr');
+  allRows.forEach(r => {
+    r.style.background = '';
+    r.style.fontWeight = 'normal';
+  });
+
+  // Highlight this row
+  rowElement.style.background = '#e8f4f8';
+  rowElement.style.fontWeight = '600';
+
+  // Try to highlight on tree
+  if (window._bdbvTreeCtrl) {
+    try {
+      const applySelection = window._bdbvTreeCtrl.getSelectionChangedListener('accession');
+      applySelection([seqId]);
+    } catch (e) {
+      console.log('Tree not yet loaded or selection failed:', e);
+    }
+  }
+}
+
+function highlightCarriersOnTree(carrierSequences) {
+  // Use PearTree's native selection API to highlight sequences with the mutation
+  if (!window._bdbvTreeCtrl) return;
+  if (!carrierSequences || carrierSequences.length === 0) return;
+
+  try {
+    const applySelection = window._bdbvTreeCtrl.getSelectionChangedListener('accession');
+
+    // Strip version suffixes (.1, .2, .3, etc.) from carrier names to match tree accessions
+    const treeAccessions = carrierSequences.map(carrier =>
+      carrier.replace(/\.\d+$/, '')  // Remove trailing .1, .2, etc.
+    );
+
+    applySelection(treeAccessions);
+  } catch (e) {
+    console.error('Tree highlighting error:', e.message);
+  }
+}
+
+// Mutation frequency chart
+let mutationFreqChart = null;
+let alignmentSequences = {}; // Will store {accession: sequence_string}
+
+// Load alignment sequences (called when alignment is available)
+function loadAlignmentData(alignmentText) {
+  if (!alignmentText) return;
+
+  let currentAccession = '';
+  let currentSeq = '';
+
+  alignmentText.split('\n').forEach(line => {
+    if (line.startsWith('>')) {
+      if (currentAccession) {
+        alignmentSequences[currentAccession] = currentSeq;
+      }
+      currentAccession = line.substring(1).trim();
+      currentSeq = '';
+    } else {
+      currentSeq += line.trim();
+    }
+  });
+  if (currentAccession) {
+    alignmentSequences[currentAccession] = currentSeq;
+  }
+}
+
+function updateMutationFrequencyChart(event) {
+  if (!event) return;
+
+  const title = document.getElementById('mutation-freq-title');
+  title.textContent = `Position ${event.position} · ${event.ref_base}→${event.alt_base}`;
+
+  const ctx = document.getElementById('mutationFreqChart');
+  if (!ctx) return;
+
+  if (mutationFreqChart) mutationFreqChart.destroy();
+
+  // Group all sequences by collection date
+  const frequencyByDate = {};
+
+  // Process all loaded sequences with dates
+  if (typeof allSequences !== 'undefined' && allSequences.length > 0) {
+    allSequences.forEach(seqData => {
+      if (!seqData.date || seqData.date === '—') return;
+
+      const date = seqData.date;
+      if (!frequencyByDate[date]) {
+        frequencyByDate[date] = { total: 0, withMutation: 0 };
+      }
+      frequencyByDate[date].total++;
+
+      // Check if this sequence is in the carriers list
+      const hasAlleles = event.all_carriers || event.examples || [];
+      const isCarrier = hasAlleles.some(carrier =>
+        seqData.id && seqData.id.includes(carrier) ||
+        seqData.sample && seqData.sample.includes(carrier) ||
+        carrier.includes(seqData.id) ||
+        carrier.includes(seqData.sample)
+      );
+
+      if (isCarrier) {
+        frequencyByDate[date].withMutation++;
+      }
+    });
+  }
+
+  // Sort dates and prepare cumulative chart data
+  const dates = Object.keys(frequencyByDate).sort();
+  let cumulativeTotal = 0;
+  let cumulativeMutation = 0;
+  const frequencies = dates.map(d => {
+    cumulativeTotal += frequencyByDate[d].total;
+    cumulativeMutation += frequencyByDate[d].withMutation;
+    const freq = cumulativeTotal > 0 ? (cumulativeMutation / cumulativeTotal * 100) : 0;
+    return freq.toFixed(1);
+  });
+
+  const note = document.getElementById('mutation-freq-note');
+  if (dates.length === 0) {
+    note.textContent = 'Collection date data not available';
+    return;
+  }
+  note.textContent = `Frequency over time · ${event.num_carriers} total sequences`;
+
+  mutationFreqChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: 'Cumulative frequency (%)',
+        data: frequencies,
+        borderColor: '#0066cc',
+        backgroundColor: 'rgba(0, 102, 204, 0.1)',
+        borderWidth: 2.5,
+        fill: true,
+        pointBackgroundColor: '#0066cc',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, labels: { font: { size: 11 }, color: '#222' } }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100,
+          ticks: { font: { size: 10 }, color: '#666', callback: v => v + '%' },
+          title: { display: true, text: 'Frequency (%)' }
+        },
+        x: {
+          ticks: { font: { size: 10 }, color: '#666', maxRotation: 45 }
+        }
+      }
+    }
+  });
+}
+
+// Update chart when mutation is selected
+function showHomoplasyDetailsWithChart(eventId) {
+  const event = allHomoplasyEvents.find(e => e.id === eventId);
+  if (!event) return;
+
+  const detailsPanel = document.getElementById('homoplasy-details');
+  const content = document.getElementById('homoplasy-details-content');
+
+  let html = `
+    <div style="color:#222;"><strong style="color:#0066cc;">Position:</strong> <code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;font-family:monospace;">${event.position}</code> (${event.ref_base}→${event.alt_base})</div>
+    <div style="color:#222;margin-top:6px;"><strong style="color:#0066cc;">Gene:</strong> ${event.gene || 'intergenic'} <span style="color:#666;">(${event.protein || '—'})</span></div>
+    <div style="color:#222;margin-top:6px;"><strong style="color:#0066cc;">Type:</strong> ${event.mutation_type || event.type || '—'}${event.protein_change || event.aa_change ? ' · <strong style="color:#d9534f;">' + (event.protein_change || event.aa_change) + '</strong>' : ''}</div>
+    <div style="color:#222;margin-top:6px;"><strong style="color:#0066cc;">Sequences:</strong> <strong>${event.num_sequences || event.num_carriers}</strong> with this mutation (highlighted on tree)</div>
+    <div style="color:#222;margin-top:6px;"><strong style="color:#0066cc;">Recurrence:</strong> same substitution on <strong>${event.recurrence}</strong> branch(es), of which <strong>${event.recurrence_internal}</strong> internal.</div>
+    <div style="color:#222;margin-top:6px;"><strong style="color:#0066cc;">Consistency index:</strong> ${event.consistency_index} <span style="color:#666;">(1.0 = single origin; lower = more homoplasy)</span></div>
+    <div style="margin-top:8px;padding:8px;border-radius:3px;font-size:0.8rem;${event.evidence === 'internal'
+        ? 'background:#e6f4ea;color:#1a4731;'
+        : 'background:#fcf3e3;color:#6b5320;'}">
+      ${event.evidence === 'internal'
+        ? 'Arose on ' + event.recurrence_internal + ' internal branches, so each origin left two or more descendants. This is convergence proper — but recurrence alone is not evidence of selection.'
+        : 'Recurrence here rests on changes private to single sequences, which cannot be distinguished from sequencing or consensus-calling error. Not evidence of convergent evolution.'}
+    </div>
+  `;
+
+  content.innerHTML = html;
+  highlightCarriersOnTree(event.all_carriers || event.examples);
+  updateMutationFrequencyChart(event);
+}
+
+// Load data when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  loadHomoplasyData();
+
+  // Initialize Chart.js if available
+  if (typeof Chart === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js';
+    document.head.appendChild(script);
+  }
+});
+</script>
+
 </body>
 </html>

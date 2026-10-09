@@ -1,0 +1,77 @@
+# --- OS / editor ---
+.DS_Store
+.obsidian/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.bak
+
+# --- IQ-TREE outputs ---
+# All regenerable from the masked alignment + model settings.
+*.iqtree
+*.treefile
+*.bionj
+*.mldist
+*.ckp.gz
+*.model.gz
+*.uniqueseq.phy
+*.log
+*.splits.nex
+*.contree
+*.parstree
+
+# --- Alignment / sequence intermediates ---
+# Timestamped and per-run working files from the Pathoplexus pipeline.
+aln_*.fasta
+aln_*.aln
+aln_*.masked.fasta
+check.aln
+BDBV_2026_*.fasta
+BDBV_2026_alignment.nex
+*.unalignedNucleotideSequences*
+details?outbreak=*
+unalignedNucleotideSequences?outbreak=*
+
+# --- QC / analysis reports (regenerated per run) ---
+aln-qc_report.html
+seq-qc_report.html
+mask_report.html
+mask_sites.csv
+alignment_qc_summary.txt
+*_SUMMARY.txt
+*_REANALYSIS.txt
+
+# --- Timestamped pipeline run outputs ---
+sequences_raw_*.fasta
+sequences_filtered_*.fasta
+sequences_combined_*.fasta
+combined.fasta
+context_sequences.fasta
+homoplasy_*.txt
+homoplasy_complete_tree*.txt
+
+# --- Scratch ---
+old/
+out
+*.out
+*.1
+
+# --- Explicitly tracked: consumed at runtime by dashboard.html ---
+# Keep these committed or the published dashboard's tree/homoplasy
+# panels fail to load on GitHub Pages.
+!homoplasy_data.json
+!local_tree.nwk
+
+# --- ASR convergence analysis intermediates (regenerate: run_asr_analysis.sh) ---
+asr_run.*
+asr_input.*
+*_input.fasta
+*_input.posmap.json
+asr_homoplasy.json
+asr_run_homoplasy.json
+
+# Kept: the analysis scripts, the human-readable report, and the two files
+# dashboard.html fetches at runtime (homoplasy_data.json, local_tree.nwk).
+!asr_run_homoplasy_report.txt
+!asr_homoplasy_report.txt
