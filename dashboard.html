@@ -351,6 +351,11 @@
           <div id="homoplasy-details-content" style="color:#666;">Select event</div>
         </div>
 
+        <details id="homoplasy-method" style="margin-top:4px;font-size:0.65rem;color:#555;line-height:1.45;flex-shrink:0;">
+          <summary style="cursor:pointer;font-weight:600;outline:none;color:#0066cc;">Method &amp; interpretation</summary>
+          <div id="homoplasy-method-body" style="margin-top:5px;"></div>
+        </details>
+
       </div>
     </div>
 
@@ -1196,6 +1201,58 @@ let filteredEvents = [];
   // Driven by homoplasy_data.json metadata.excluded, which groups every genome
   // left out of the displayed results by reason. Safe to call before that file
   // has loaded; loadHomoplasyData() calls it again once it has.
+  // ── Method note for the convergent-mutation panel ────────────────────────
+  // Rendered from homoplasy_data.json metadata so the stated thresholds are
+  // always the ones the pipeline actually ran with.
+  window.renderHomoplasyMethod = function renderHomoplasyMethod() {
+    const host = document.getElementById('homoplasy-method-body');
+    if (!host) return;
+    const m = homoplasyMetadata || {};
+    if (!m.method) { host.innerHTML = '<span style="color:#888;">Not yet loaded.</span>'; return; }
+    const pct = v => (v == null ? '?' : `${Math.round(v * 100)}%`);
+    const eff = m.effect_counts_internal_evidence || {};
+    const ns = eff['non-synonymous'] || 0, sy = eff['synonymous'] || 0;
+    const tr = m.transition_fraction != null ? Math.round(m.transition_fraction * 100) : null;
+    const masked = (m.masked_sites || []).join(', ');
+    host.innerHTML = `
+      <p style="margin:0 0 5px;"><strong>What is counted.</strong> Ancestral sequences are
+      reconstructed at every internal node of the tree with IQ-TREE
+      (<code>--ancestral</code>, states below p=${m.min_state_prob} discarded). Every branch is
+      then compared with its parent, and a substitution is counted wherever the two differ.
+      A site is <em>recurrent</em> when the identical substitution arises on more than one branch.</p>
+
+      <p style="margin:0 0 5px;"><strong>Independent origins.</strong> A change on a terminal
+      branch occurs in one genome only and cannot be told apart from a sequencing or
+      consensus-calling error. The default view therefore shows only substitutions arising on
+      two or more <em>internal</em> branches, where each origin was inherited by at least two
+      sampled genomes. Of ${m.total_events} recurrent sites,
+      ${m.events_internal_evidence} meet that bar.</p>
+
+      <p style="margin:0 0 5px;"><strong>Data.</strong> ${m.n_sequences} of
+      ${m.n_sequences_before_filter} genomes, ${m.n_columns} alignment columns,
+      ${m.variable_sites} variable sites. Tree rooted on ${m.outgroup}. IUPAC ambiguity codes
+      are treated as missing, not as alleles. Genomes with more than ${pct(m.max_seq_missing)}
+      missing data and columns with more than ${pct(m.max_site_missing)} are dropped;
+      ${masked ? `site ${masked} is masked, as in the Nextstrain BDBV build; ` : ''}sequences
+      with ADAR editing signatures are excluded. See the exclusion list under the tree.</p>
+
+      <p style="margin:0 0 5px;"><strong>Recurrence is not selection.</strong>
+      ${tr != null ? `${tr}% of recurrent substitutions here are transitions, against roughly 33%
+      expected by chance, ` : ''}and among those with independent origins the ratio of
+      non-synonymous to synonymous changes is ${sy ? (ns / sy).toFixed(2) : 'n/a'} where a neutral
+      expectation is about 2.5–3.0. Recurrence is therefore <em>depleted</em>, not enriched, for
+      protein-changing substitutions &mdash; the pattern expected from mutational hotspots and
+      purifying selection rather than adaptation. No site here should be read as evidence of
+      selection without an explicit test such as HyPhy MEME.</p>
+
+      <p style="margin:0;color:#777;"><strong>Limitations.</strong> Branch support was not
+      estimated and the tree is heavily polytomised, so origin counts are an upper bound. The
+      outbreak carries very little diversity, so the set of recurrent sites shifts with the
+      quality thresholds; individual sites should not be interpreted in isolation.
+      Analysis ${m.timestamp || ''} from ${m.alignment || 'the current alignment'};
+      pipeline: <code>run_asr_analysis.sh</code>.</p>`;
+  };
+
   window.renderExclusions = function renderExclusions() {
     const host = document.getElementById('tree-exclusions-footnote');
     const summary = document.getElementById('tree-exclusions-summary');
@@ -1247,6 +1304,7 @@ async function loadHomoplasyData() {
     const events = data.events || data;
     homoplasyMetadata = data.metadata || {};
     renderExclusions();
+    renderHomoplasyMethod();
 
     // Add IDs and normalize field names
     allHomoplasyEvents = events.map((event, idx) => ({
