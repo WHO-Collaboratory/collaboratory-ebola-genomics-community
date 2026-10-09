@@ -23,6 +23,7 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 
@@ -61,6 +62,32 @@ def normalise(seq):
     return "".join(out)
 
 
+def read_exclusions(paths):
+    """Accessions to drop, from files of one-per-line ids with # comments."""
+    out = set()
+    for path in paths:
+        try:
+            with open(path) as fh:
+                for line in fh:
+                    line = line.split("#", 1)[0].strip()
+                    if line:
+                        out.add(re.sub(r"\.\d+$", "", line))
+        except OSError as exc:
+            sys.exit(f"Could not read exclusion file {path}: {exc}")
+    return out
+
+
+def genomic_positions(ref):
+    """Map each alignment column to a 1-based genomic coordinate on `ref`."""
+    coord = []
+    g = 0
+    for base in ref:
+        if base != "-":
+            g += 1
+        coord.append(g)
+    return coord
+
+
 def missing_fraction(seq):
     return sum(1 for c in seq if c in MISSING) / len(seq) if seq else 1.0
 
@@ -72,6 +99,17 @@ def main():
     ap.add_argument("--out", default="asr_input")
     ap.add_argument("--max-seq-missing", type=float, default=0.10)
     ap.add_argument("--max-site-missing", type=float, default=0.10)
+    ap.add_argument(
+        "--mask-sites", default="7461",
+        help="Comma-separated genomic positions (1-based, on the outgroup "
+             "reference) to mask to N in every sequence. Default 7461, which "
+             "the Nextstrain BDBV build masks as 'a polymorphic site in a "
+             "variable region in GP that conflicts with outgroup rooting'. "
+             "Pass an empty string to mask nothing.")
+    ap.add_argument(
+        "--exclude", action="append", default=[],
+        help="File of accessions to drop, one per line, '#' for comments. "
+             "Repeatable. Matching ignores version suffixes.")
     args = ap.parse_args()
 
     seqs = load_fasta(args.alignment)
@@ -84,6 +122,7 @@ def main():
     if any(len(s) != align_len for s in seqs.values()):
         sys.exit("Sequences are not all the same length - is this aligned?")
 
+    n_input = len(seqs)
     print(f"Input: {len(seqs)} sequences x {align_len} columns")
 
     # --- 2. ambiguity -> N (done first so it counts toward missingness) ---
@@ -91,6 +130,31 @@ def main():
                      if c in AMBIGUITY or c == "?")
     seqs = {n: normalise(s) for n, s in seqs.items()}
     print(f"Rewrote {amb_before} ambiguity/'?' characters to N")
+
+    # --- mask specific sites (genomic coords on the reference) ---
+    mask_positions = [int(x) for x in args.mask_sites.split(",") if x.strip()]
+    if mask_positions:
+        coord = genomic_positions(seqs[args.outgroup])
+        cols = [i for i, g in enumerate(coord) if g in set(mask_positions)]
+        if cols:
+            colset = set(cols)
+            seqs = {n: "".join("N" if i in colset else c
+                               for i, c in enumerate(s))
+                    for n, s in seqs.items()}
+        print(f"Masked {len(cols)} column(s) for genomic site(s) "
+              f"{', '.join(map(str, mask_positions))}")
+
+    # --- drop excluded accessions ---
+    excluded = read_exclusions(args.exclude)
+    excluded_hits = []
+    if excluded:
+        excluded_hits = [n for n in seqs
+                         if re.sub(r"\.\d+$", "", n) in excluded
+                         and n != args.outgroup]
+        for n in excluded_hits:
+            del seqs[n]
+        print(f"Excluded {len(excluded_hits)} of {len(excluded)} listed "
+              f"accessions; {len(seqs)} remain")
 
     # --- 1. sequence-level filter ---
     kept, dropped = {}, []
@@ -139,6 +203,11 @@ def main():
         "max_seq_missing": args.max_seq_missing,
         "max_site_missing": args.max_site_missing,
         "dropped_sequences": [name for name, _ in dropped],
+        "n_input": n_input,
+        "masked_sites": mask_positions,
+        "excluded_sequences": sorted(excluded_hits),
+        "exclusion_files": args.exclude,
+        "n_excluded": len(excluded) if excluded else 0,
         # 1-based filtered column -> [1-based original column, genomic position]
         "columns": {str(i + 1): [p + 1, genomic_of_col[p]]
                     for i, p in enumerate(keep_cols)},

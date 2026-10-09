@@ -23,6 +23,12 @@ MAX_SEQ_MISSING="${MAX_SEQ_MISSING:-0.10}"
 MAX_SITE_MISSING="${MAX_SITE_MISSING:-0.10}"
 MIN_STATE_PROB="${MIN_STATE_PROB:-0.9}"
 
+# Site masked by the Nextstrain BDBV build as "a polymorphic site in a variable
+# region in GP that conflicts with outgroup rooting".
+MASK_SITES="${MASK_SITES:-7461}"
+# Sequences with ADAR editing signatures, excluded upstream by Nextstrain.
+EXCLUDE_FILE="${EXCLUDE_FILE:-defaults/exclude_bdbv_adar.txt}"
+
 [ -x "$IQTREE" ] || { echo "IQ-TREE not found at $IQTREE (set IQTREE=)"; exit 1; }
 [ -f "$ALIGN" ]   || { echo "Alignment not found: $ALIGN"; exit 1; }
 [ -f "$GENBANK" ] || { echo "GenBank not found: $GENBANK (set GENBANK=)"; exit 1; }
@@ -31,7 +37,9 @@ echo "== 1/3 filtering alignment =="
 python3 asr_prep.py "$ALIGN" "$OUTGROUP" \
     --out "${PREFIX}_input" \
     --max-seq-missing "$MAX_SEQ_MISSING" \
-    --max-site-missing "$MAX_SITE_MISSING"
+    --max-site-missing "$MAX_SITE_MISSING" \
+    --mask-sites "$MASK_SITES" \
+    ${EXCLUDE_FILE:+--exclude "$EXCLUDE_FILE"}
 
 echo
 echo "== 2/3 IQ-TREE ancestral state reconstruction =="

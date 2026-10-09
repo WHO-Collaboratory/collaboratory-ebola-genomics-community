@@ -47,18 +47,29 @@ def exclusions(meta):
     dropped = meta.get("dropped_sequences") or []
     pct = meta.get("max_seq_missing")
     groups = []
+    adar = meta.get("excluded_sequences") or []
+    if adar:
+        groups.append({
+            "reason": "ADAR editing signatures (excluded upstream by "
+                      "Nextstrain)",
+            "count": len(adar),
+            "accessions": sorted(adar),
+            "stage": "analysis",
+        })
     if dropped:
         groups.append({
             "reason": "Failed sequence QC"
                       + (f" (>{pct:.0%} missing data)" if pct else ""),
             "count": len(dropped),
             "accessions": sorted(dropped),
+            "stage": "analysis",
         })
     groups.append({
         "reason": "Phylogenetic outliers excluded from the tree",
         "count": len(TREE_EXCLUSIONS),
         "accessions": sorted(TREE_EXCLUSIONS),
         "detail": TREE_EXCLUSIONS,
+        "stage": "display",
     })
     outgroup = meta.get("outgroup")
     roots = sorted({a for a in ([outgroup] if outgroup else []) + ["PP_006X68B.1"]})
@@ -66,9 +77,14 @@ def exclusions(meta):
         "reason": "Rooting outgroups (used to root the tree, not displayed)",
         "count": len(roots),
         "accessions": roots,
+        "stage": "display",
     })
     return {
         "total": sum(g["count"] for g in groups),
+        # Genomes kept out of the analysis itself, as opposed to those analysed
+        # but not drawn on the tree.
+        "total_from_analysis": sum(g["count"] for g in groups
+                                   if g.get("stage") == "analysis"),
         "groups": groups,
     }
 
@@ -137,6 +153,7 @@ def main():
             "tree": meta["tree"],
             "alignment": meta["alignment"],
             "n_sequences_before_filter": meta.get("n_sequences_before_filter"),
+            "masked_sites": meta.get("masked_sites") or [],
             "excluded": exclusions(meta),
             "max_seq_missing": meta.get("max_seq_missing"),
             "max_site_missing": meta.get("max_site_missing"),

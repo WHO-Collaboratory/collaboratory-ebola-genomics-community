@@ -1209,11 +1209,19 @@ let filteredEvents = [];
     const kept = homoplasyMetadata.n_sequences;
     const total = homoplasyMetadata.n_sequences_before_filter;
     if (summary) {
+      // Lead with how many genomes the results rest on. ex.total also counts
+      // genomes that were analysed but kept off the tree, so it is not the
+      // number missing from the analysis.
       summary.textContent =
-        `Excluded from analysis: ${ex.total} genome${ex.total === 1 ? '' : 's'}`
-        + (kept && total ? ` (${kept} of ${total} analysed)` : '');
+        (kept && total ? `${kept} of ${total} genomes analysed` : 'Excluded genomes')
+        + ` \u00b7 ${ex.total} excluded`;
     }
-    host.innerHTML = ex.groups.map(g => {
+    const masked = homoplasyMetadata.masked_sites || [];
+    const maskedNote = masked.length
+      ? `<div style="margin-bottom:6px;color:#777;">Masked site${masked.length === 1 ? '' : 's'}: `
+        + `<span style="font-family:ui-monospace,Menlo,monospace;">${masked.join(', ')}</span></div>`
+      : '';
+    host.innerHTML = maskedNote + ex.groups.map(g => {
       const items = (g.accessions || []).map(a => {
         const why = g.detail && g.detail[a];
         const short = a.replace(/\.\d+$/, '');
