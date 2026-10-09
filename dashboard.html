@@ -910,6 +910,34 @@
   let _currentTreeSource = 'nextstrain';
   let _localTreeData = null;
 
+  /**
+   * Add the "new" styling to tips of a pre-built Newick: a star in the label
+   * and user_colour, which is what tipColourBy: 'user_colour' reads and what
+   * the New button in the colour toggle keys off. Mirrors the inline handling
+   * in toNewick() for the Nextstrain tree.
+   *
+   * Tips look like:  'PP_006XCJJ · Hoima · 05-14'[&accession="PP_006XCJJ",...]
+   * Single quotes inside a Newick label are escaped by doubling them.
+   */
+  function markNewTips(newick) {
+    const isNew = window._bdbvNewAccessions;
+    if (!isNew || !isNew.size || !newick) return newick;
+    return newick.replace(
+      /'((?:[^']|'')*)'\[&([^\]]*)\]/g,
+      (whole, label, attrs) => {
+        const m = /accession="([^"]+)"/.exec(attrs);
+        if (!m) return whole;
+        const acc = m[1].replace(/\.\d+$/, '');
+        if (!isNew.has(acc)) return whole;
+        const newLabel = label.startsWith('★ ') ? label : '★ ' + label;
+        const newAttrs = /user_colour=/.test(attrs)
+          ? attrs
+          : attrs + ',user_colour="#e05c3a"';
+        return `'${newLabel}'[&${newAttrs}]`;
+      }
+    );
+  }
+
   window.switchTreeSource = async function(source) {
     console.log(`[switchTreeSource] Called with source=${source}`);
     _currentTreeSource = source;
@@ -940,7 +968,12 @@
           return;
         }
       }
-      treeData = _localTreeData;
+      // Mark recently-released genomes. The Nextstrain newick is built in the
+      // browser and gets this inline (see toNewick); the local one is written
+      // ahead of time by generate_local_tree.py, so apply it here instead of
+      // baking it into the file — "new" is relative to today and would go
+      // stale between pipeline runs.
+      treeData = markNewTips(_localTreeData);
     } else {
       treeData = window._bdbvNexusOriginal;
       console.log(`[switchTreeSource] Using Nextstrain tree, available=${!!treeData}`);
