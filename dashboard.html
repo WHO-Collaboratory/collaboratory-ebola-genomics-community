@@ -450,7 +450,7 @@
     const container = document.getElementById("seq-table-container");
 
     status.innerHTML = `
-      <div id="seq-count">${sequences.length}</div>
+      <div id="seq-count">${sequences.length}<span id="seq-count-note" style="font-size:0.8rem;font-weight:400;"></span></div>
       <div id="seq-count-label">genomes deposited · ${(()=>{
         const nOpen = sequences.filter(s => s.terms === 'OPEN').length;
         const nRestricted = sequences.filter(s => s.terms === 'RESTRICTED').length;
@@ -644,13 +644,34 @@
     try {
       // Two parallel fetches: latest version for metadata, version=1 for first upload dates
       const [latestResp, v1Resp] = await Promise.all([
-        fetch(`${LAPIS}/sample/details?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION&limit=1000&dataFormat=JSON`,
+        fetch(`${LAPIS}/sample/details?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION&dataFormat=JSON`,
           { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) }),
-        fetch(`${LAPIS}/sample/details?outbreak=Bdbv-2026&version=1&dataFormat=JSON&fields=accession,releasedDate&limit=1000`,
+        fetch(`${LAPIS}/sample/details?outbreak=Bdbv-2026&version=1&dataFormat=JSON&fields=accession,releasedDate`,
           { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) }),
       ]);
       if (!latestResp.ok) throw new Error(`HTTP ${latestResp.status}`);
       const [data, v1Data] = await Promise.all([latestResp.json(), v1Resp.json()]);
+
+      // These requests previously carried limit=1000, which silently truncated
+      // once the outbreak passed a thousand genomes - the page looked healthy
+      // and simply showed fewer. Ask LAPIS how many it holds and warn if the
+      // response is short, rather than trusting the row count.
+      fetch(`${LAPIS}/sample/aggregated?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION`,
+            { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) })
+        .then(r => r.ok ? r.json() : null)
+        .then(agg => {
+          const expected = agg?.data?.[0]?.count;
+          const got = (data.data || []).length;
+          if (expected && got < expected) {
+            console.warn(`Pathoplexus returned ${got} of ${expected} genomes - response truncated`);
+            const el = document.getElementById('seq-count-note');
+            if (el) {
+              el.textContent = ` \u00b7 showing ${got} of ${expected}`;
+              el.style.color = '#a00';
+            }
+          }
+        })
+        .catch(() => {});
 
       // Build lookup: accession → first-version releasedDate
       const firstReleasedMap = {};
