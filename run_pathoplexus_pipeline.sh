@@ -293,24 +293,6 @@ echo "✓ IQTree3 complete"
 echo "   Tree file: ${MASKED_FASTA}.treefile"
 echo ""
 
-# Step 9: Run homoplasy analysis
-echo "[9/9] Running phylogenetic homoplasy analysis..."
-HOMOPLASY_REPORT="${WORK_DIR}/homoplasy_with_proteins_${TIMESTAMP}.txt"
-
-python3 "${WORK_DIR}/phylogenetic_homoplasy_with_proteins.py" \
-    "${WORK_DIR}/NC_014373.1.gb" \
-    "$MASKED_FASTA" \
-    "${MASKED_FASTA}.treefile" \
-    "$HOMOPLASY_REPORT"
-
-if [ -f "$HOMOPLASY_REPORT" ]; then
-    echo "✓ Homoplasy analysis complete"
-    echo "   Report: $HOMOPLASY_REPORT"
-else
-    echo "WARNING: Homoplasy analysis may have failed"
-fi
-echo ""
-
 # Summary
 echo "=========================================="
 echo "Complete Pipeline Finished!"
@@ -319,5 +301,8 @@ echo ""
 echo "Output files:"
 echo "  Masked alignment:    $MASKED_FASTA"
 echo "  Tree file:          ${MASKED_FASTA}.treefile"
-echo "  Homoplasy report:   $HOMOPLASY_REPORT"
+echo ""
+echo "Next: ./run_asr_analysis.sh $MASKED_FASTA"
+echo "  Convergent-mutation analysis is a separate step and builds the"
+echo "  dashboard data from this alignment and tree."
 echo ""
