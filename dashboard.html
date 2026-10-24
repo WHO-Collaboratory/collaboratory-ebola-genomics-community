@@ -1231,6 +1231,7 @@ let filteredEvents = [];
     const m = homoplasyMetadata || {};
     if (!m.method) { host.innerHTML = '<span style="color:#888;">Not yet loaded.</span>'; return; }
     const pct = v => (v == null ? '?' : `${Math.round(v * 100)}%`);
+    const a = m.adar || null;
     const eff = m.effect_counts_internal_evidence || {};
     const ns = eff['non-synonymous'] || 0, sy = eff['synonymous'] || 0;
     const tr = m.transition_fraction != null ? Math.round(m.transition_fraction * 100) : null;
@@ -1249,13 +1250,28 @@ let filteredEvents = [];
       sampled genomes. Of ${m.total_events} recurrent sites,
       ${m.events_internal_evidence} meet that bar.</p>
 
+      <p style="margin:0 0 5px;"><strong>Editing is counted once, not many times.</strong>
+      ADAR, a host enzyme, converts adenosine to inosine in double-stranded RNA;
+      inosine reads as guanosine, surfacing here as T&rarr;C. It is processive, so a
+      single editing event leaves a run of changes across tens to hundreds of
+      bases. Counted per site those look like many independent mutations and
+      create convergence that never happened. Runs of ${a ? a.min_count : 3} or more
+      T&rarr;C changes within ${a ? a.max_gap : 200}&nbsp;nt are therefore identified on
+      the tree and all but the first masked${a ? `: ${a.bases_masked.toLocaleString()} bases
+      across ${a.genomes_affected} genomes, from ${a.branches_with_runs} branches carrying a
+      run` : ''}. The first is kept so the branch still records that the event
+      occurred. This follows the Nextstrain BDBV build, which replaced an earlier
+      policy of discarding edited genomes.</p>
+
       <p style="margin:0 0 5px;"><strong>Data.</strong> ${m.n_sequences} of
       ${m.n_sequences_before_filter} genomes, ${m.n_columns} alignment columns,
       ${m.variable_sites} variable sites. Tree rooted on ${m.outgroup}. IUPAC ambiguity codes
       are treated as missing, not as alleles. Genomes with more than ${pct(m.max_seq_missing)}
       missing data and columns with more than ${pct(m.max_site_missing)} are dropped;
-      ${masked ? `site ${masked} is masked, as in the Nextstrain BDBV build; ` : ''}sequences
-      with ADAR editing signatures are excluded. See the exclusion list under the tree.</p>
+      ${masked ? `site ${masked} is masked, as in the Nextstrain BDBV build; ` : ''}rate
+      outliers and QC failures on the Nextstrain exclusion list are removed. Genomes
+      carrying ADAR edits are kept, since the edits themselves are masked. See the
+      exclusion list under the tree.</p>
 
       <p style="margin:0 0 5px;"><strong>Recurrence is not selection.</strong>
       ${tr != null ? `${tr}% of recurrent substitutions here are transitions, against roughly 33%

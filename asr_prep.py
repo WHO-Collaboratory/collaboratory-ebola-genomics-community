@@ -107,6 +107,15 @@ def main():
              "variable region in GP that conflicts with outgroup rooting'. "
              "Pass an empty string to mask nothing.")
     ap.add_argument(
+        "--mask-start", type=int, default=0,
+        help="Mask this many positions at the 5' end of the genome.")
+    ap.add_argument(
+        "--mask-end", type=int, default=40,
+        help="Mask this many positions at the 3' end (default 40). Terminal "
+             "positions carry sequencing artefacts and are where ragged ends "
+             "misplace; both the Nextstrain BDBV build and published "
+             "phylodynamic analyses of this outbreak mask the genome ends.")
+    ap.add_argument(
         "--exclude", action="append", default=[],
         help="File of accessions to drop, one per line, '#' for comments. "
              "Repeatable. Matching ignores version suffixes.")
@@ -133,6 +142,16 @@ def main():
 
     # --- mask specific sites (genomic coords on the reference) ---
     mask_positions = [int(x) for x in args.mask_sites.split(",") if x.strip()]
+
+    # Terminal masking, expressed in reference coordinates. The reference
+    # length is the number of non-gap bases in the outgroup row.
+    ref_len = sum(1 for c in seqs[args.outgroup] if c != "-")
+    if args.mask_start > 0:
+        mask_positions += list(range(1, args.mask_start + 1))
+    if args.mask_end > 0:
+        mask_positions += list(range(ref_len - args.mask_end + 1, ref_len + 1))
+    mask_positions = sorted(set(mask_positions))
+
     if mask_positions:
         coord = genomic_positions(seqs[args.outgroup])
         cols = [i for i, g in enumerate(coord) if g in set(mask_positions)]
@@ -141,8 +160,14 @@ def main():
             seqs = {n: "".join("N" if i in colset else c
                                for i, c in enumerate(s))
                     for n, s in seqs.items()}
-        print(f"Masked {len(cols)} column(s) for genomic site(s) "
-              f"{', '.join(map(str, mask_positions))}")
+        termini = []
+        if args.mask_start:
+            termini.append(f"first {args.mask_start}")
+        if args.mask_end:
+            termini.append(f"last {args.mask_end}")
+        print(f"Masked {len(cols)} column(s): "
+              f"{args.mask_sites or 'no'} specific site(s)"
+              + (f" plus the {' and '.join(termini)} positions" if termini else ""))
 
     # --- drop excluded accessions ---
     excluded = read_exclusions(args.exclude)

@@ -24,6 +24,7 @@ Usage:
 import argparse
 import datetime
 import json
+import os
 from collections import Counter
 
 TRANSITIONS = {("A", "G"), ("G", "A"), ("C", "T"), ("T", "C")}
@@ -50,8 +51,8 @@ def exclusions(meta):
     adar = meta.get("excluded_sequences") or []
     if adar:
         groups.append({
-            "reason": "ADAR editing signatures (excluded upstream by "
-                      "Nextstrain)",
+            "reason": "Rate outliers and QC failures (Nextstrain exclusion "
+                      "list)",
             "count": len(adar),
             "accessions": sorted(adar),
             "stage": "analysis",
@@ -98,6 +99,16 @@ def main():
 
     src = json.load(open(args.infile))
     meta = src["metadata"]
+
+    # ADAR masking summary, if that step ran. Absent when ADAR_MASK=0.
+    adar = None
+    for cand in ("asr_run_adar_report.json", "adar_report.json"):
+        if os.path.exists(cand):
+            try:
+                adar = json.load(open(cand))
+            except (OSError, ValueError):
+                adar = None
+            break
 
     events = []
     for site in src["sites"]:
@@ -154,6 +165,7 @@ def main():
             "alignment": meta["alignment"],
             "n_sequences_before_filter": meta.get("n_sequences_before_filter"),
             "masked_sites": meta.get("masked_sites") or [],
+            "adar": adar,
             "excluded": exclusions(meta),
             "max_seq_missing": meta.get("max_seq_missing"),
             "max_site_missing": meta.get("max_site_missing"),

@@ -57,6 +57,13 @@ def main():
                          "(default 200, matching upstream)")
     ap.add_argument("--min-count", type=int, default=3,
                     help="Minimum edits to call a run (default 3)")
+    ap.add_argument("--min-fraction", type=float, default=0.5,
+                    help="A run is only called on a branch where T>C changes "
+                         "are at least this fraction of the branch's "
+                         "substitutions (default 0.5).")
+    ap.add_argument("--max-run-span", type=int, default=1000,
+                    help="Maximum nt from the first to the last edit of a run "
+                         "(default 1000).")
     ap.add_argument("--report", default="adar_report.txt")
     args = ap.parse_args()
 
@@ -106,17 +113,33 @@ def main():
     def walk(node, parent, inherited):
         surviving = dict(inherited)          # site -> genomic pos
         new_edits = {}
+        total_subs = 0
         if parent is not None:
             for site in variable:
                 a, b = state_at(parent, site), state_at(node, site)
                 if a is None or b is None or a == b:
                     continue
+                total_subs += 1
                 if site in surviving:
                     if b == "N":
                         continue             # ambiguous, keep inherited edit
                     del surviving[site]      # reverted, edit is lost
                 elif is_adar(a, b):
                     new_edits[site] = genomic[site]
+
+        # A run is only credible where T>C dominates the branch. ADAR is
+        # processive, so an editing event leaves a branch whose changes are
+        # almost all T>C within a short span. A long branch carrying many
+        # substitutions of every kind will have some T>C falling close
+        # together by chance: the stem from the 2007 outgroup to this outbreak
+        # has 190 substitutions, only 21% of them T>C and spread over the
+        # whole genome, and was being called a run and then inherited by every
+        # genome below it. Requiring T>C to be a majority of the branch
+        # separates the two cases.
+        if new_edits and total_subs:
+            tc_fraction = len(new_edits) / total_subs
+            if tc_fraction < args.min_fraction:
+                new_edits = {}
 
         edits = sorted({**surviving, **new_edits}.items(),
                        key=lambda kv: kv[1])
@@ -131,6 +154,8 @@ def main():
             current.append((site, gpos))
         if len(current) >= args.min_count:
             runs.append(current)
+        runs = [r for r in runs
+                if r[-1][1] - r[0][1] <= args.max_run_span]
 
         if runs and any(s in new_edits for r in runs for s, _ in r):
             runs_found.append((node.name or "internal",
@@ -199,6 +224,20 @@ def main():
                      f"({gpos[0]}-{gpos[-1]})")
     with open(args.report, "w") as fh:
         fh.write("\n".join(lines) + "\n")
+
+    # Machine-readable summary, so the dashboard can describe the masking in
+    # its method note from what actually ran rather than from fixed prose.
+    summary = {
+        "max_gap": args.max_gap,
+        "min_count": args.min_count,
+        "n_genomes": len(seqs),
+        "genomes_affected": affected,
+        "bases_masked": masked_bases,
+        "branches_with_runs": len(runs_found),
+    }
+    summary_path = os.path.splitext(args.report)[0] + ".json"
+    with open(summary_path, "w") as fh:
+        json.dump(summary, fh, indent=1)
 
     print("\n".join(lines))
     print(f"\nWrote {args.out_alignment} and {args.report}")

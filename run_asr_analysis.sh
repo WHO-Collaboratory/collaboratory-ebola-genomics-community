@@ -26,8 +26,14 @@ MIN_STATE_PROB="${MIN_STATE_PROB:-0.9}"
 # Site masked by the Nextstrain BDBV build as "a polymorphic site in a variable
 # region in GP that conflicts with outgroup rooting".
 MASK_SITES="${MASK_SITES:-7461}"
-# Sequences with ADAR editing signatures, excluded upstream by Nextstrain.
-EXCLUDE_FILE="${EXCLUDE_FILE:-defaults/exclude_bdbv_adar.txt}"
+# Genome termini carry sequencing artefacts and are where ragged ends get
+# misplaced. Masked by the Nextstrain BDBV build and by published phylodynamic
+# analyses of this outbreak.
+MASK_START="${MASK_START:-0}"
+MASK_END="${MASK_END:-40}"
+# Rate outliers and QC failures, per the Nextstrain BDBV exclusion list. ADAR-
+# edited genomes are deliberately NOT excluded - their edits are masked instead.
+EXCLUDE_FILE="${EXCLUDE_FILE:-defaults/exclude_bdbv.txt}"
 
 [ -x "$IQTREE" ] || { echo "IQ-TREE not found at $IQTREE (set IQTREE=)"; exit 1; }
 [ -f "$ALIGN" ]   || { echo "Alignment not found: $ALIGN"; exit 1; }
@@ -39,6 +45,8 @@ python3 asr_prep.py "$ALIGN" "$OUTGROUP" \
     --max-seq-missing "$MAX_SEQ_MISSING" \
     --max-site-missing "$MAX_SITE_MISSING" \
     --mask-sites "$MASK_SITES" \
+    --mask-start "$MASK_START" \
+    --mask-end "$MASK_END" \
     ${EXCLUDE_FILE:+--exclude "$EXCLUDE_FILE"}
 
 echo

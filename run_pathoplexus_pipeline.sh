@@ -260,10 +260,112 @@ FILTERED_COUNT=$(grep -c "^>" "$FILTERED_SEQUENCES" || echo 0)
 echo "✓ Filtered to $FILTERED_COUNT sequences"
 echo ""
 
-# Step 6: Run MAFFT alignment
-echo "[6/8] Running MAFFT alignment (mafft --auto)..."
-mafft --auto "$FILTERED_SEQUENCES" > "$ALIGNED_FASTA"
-echo "✓ MAFFT alignment complete"
+# Step 6: Run MAFFT alignment, anchored on the reference
+#
+# Each sequence is aligned to the reference independently (--add) rather than
+# all against each other. A progressive alignment has nothing holding a
+# sequence to the reference, so a genome with a ragged, N-heavy end can have
+# its terminal sequence placed in the wrong columns: three Nanopore genomes
+# with heavy 3' dropout had their trailer put ~224 positions early, which
+# registered as ~57 differences each, put them on a long branch together, and
+# fed spurious sites into the convergence analysis.
+#
+# --keeplength holds the output to the reference's coordinates, so an
+# alignment column is a genomic position. That also makes the result stable
+# as genomes accumulate: adding sequences cannot re-shuffle the ones already
+# aligned, which a progressive alignment is free to do on every rerun.
+echo "[6/8] Running MAFFT alignment (reference-anchored)..."
+REF_ONLY="${WORK_DIR}/_mafft_ref_${TIMESTAMP}.fasta"
+TO_ADD="${WORK_DIR}/_mafft_add_${TIMESTAMP}.fasta"
+
+python3 - "$FILTERED_SEQUENCES" "$REF_ONLY" "$TO_ADD" <<'PYSPLIT'
+import sys
+src, ref_out, add_out = sys.argv[1], sys.argv[2], sys.argv[3]
+recs, name, buf = [], None, []
+for line in open(src):
+    line = line.rstrip()
+    if line.startswith(">"):
+        if name is not None:
+            recs.append((name, "".join(buf)))
+        name, buf = line[1:], []
+    elif line:
+        buf.append(line)
+if name is not None:
+    recs.append((name, "".join(buf)))
+
+ref = [r for r in recs if r[0].split()[0].startswith("NC_014373")]
+rest = [r for r in recs if not r[0].split()[0].startswith("NC_014373")]
+if not ref:
+    sys.exit("Reference NC_014373.1 not found in the filtered sequences")
+with open(ref_out, "w") as fh:
+    for n, q in ref:
+        fh.write(f">{n}\n{q}\n")
+with open(add_out, "w") as fh:
+    for n, q in rest:
+        fh.write(f">{n}\n{q}\n")
+print(f"  reference: {len(ref)}, to align: {len(rest)}")
+PYSPLIT
+
+# Align each sequence to the reference on its own. Adding the whole batch in
+# one --add call is not enough: MAFFT aligns the added sequences as a group,
+# so genomes that fail the same way slide together and stay misplaced. Three
+# Nanopore genomes with heavy 3' dropout did exactly that. Aligned singly they
+# land correctly, and at ~0.2s each this costs a few minutes.
+SPLIT_DIR="${WORK_DIR}/_mafft_split_${TIMESTAMP}"
+mkdir -p "$SPLIT_DIR"
+
+python3 - "$TO_ADD" "$SPLIT_DIR" <<'PYSPLIT2'
+import os, sys
+src, outdir = sys.argv[1], sys.argv[2]
+name, buf, n = None, [], 0
+def flush(name, buf):
+    if name is None:
+        return 0
+    with open(os.path.join(outdir, f"{abs(hash(name)) % (10**12)}_{len(buf)}.fa"), "w") as fh:
+        fh.write(f">{name}\n{''.join(buf)}\n")
+    return 1
+for line in open(src):
+    line = line.rstrip()
+    if line.startswith(">"):
+        n += flush(name, buf)
+        name, buf = line[1:], []
+    elif line:
+        buf.append(line)
+n += flush(name, buf)
+print(f"  split into {n} single-sequence files")
+PYSPLIT2
+
+ALIGN_PARTS="${WORK_DIR}/_mafft_parts_${TIMESTAMP}"
+mkdir -p "$ALIGN_PARTS"
+find "$SPLIT_DIR" -name '*.fa' -print0 \
+  | xargs -0 -P "${ALIGN_JOBS:-8}" -I{} sh -c \
+      'mafft --quiet --auto --keeplength --add "$1" "$2" 2>/dev/null \
+         | awk "/^>/{n++} n==2" > "$3/$(basename "$1").aln"' \
+      _ {} "$REF_ONLY" "$ALIGN_PARTS"
+
+# Reference first, then every aligned sequence.
+cat "$REF_ONLY" > "$ALIGNED_FASTA"
+cat "$ALIGN_PARTS"/*.aln >> "$ALIGNED_FASTA"
+
+ALIGNED_N=$(grep -c "^>" "$ALIGNED_FASTA" || echo 0)
+EXPECTED_N=$(( $(grep -c "^>" "$TO_ADD") + 1 ))
+if [ "$ALIGNED_N" -ne "$EXPECTED_N" ]; then
+    echo "ERROR: aligned $ALIGNED_N sequences, expected $EXPECTED_N"
+    exit 1
+fi
+rm -rf "$SPLIT_DIR" "$ALIGN_PARTS"
+rm -f "$REF_ONLY" "$TO_ADD"
+
+ALN_LEN=$(python3 -c "
+import sys
+n=0
+for line in open('$ALIGNED_FASTA'):
+    if line.startswith('>'):
+        if n: break
+        continue
+    n+=len(line.strip())
+print(n)")
+echo "✓ MAFFT alignment complete (length ${ALN_LEN}, reference coordinates)"
 echo ""
 
 # Step 7: Run raccoon alignment QC and masking
