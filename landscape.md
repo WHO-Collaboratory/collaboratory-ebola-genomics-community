@@ -10,8 +10,10 @@ In an effort to help countries navigate the available wet-lab and dry-lab approa
 
 We welcome updates either through pull-requests or via issues to this repository.
 
-> **Last updated:** 2026-06-01  
-> *Based on: [ARTIC BDBV Sequencing Guide v1.0.0](https://artic.network/viruses/bdbv/bdbv-sequencing-guide.html) and [Initial genomes from May 2026 BDBV outbreak (Virological)](https://virological.org/t/initial-genomes-from-may-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo-and-uganda/1032)*
+> **Last updated:** 2026-10-25  
+> *Based on the [ARTIC BDBV Sequencing Guide v1.0.0](https://artic.network/viruses/bdbv/bdbv-sequencing-guide.html), the [Virological posts](#references) from INRB Kinshasa and partners, and the methods deployed in the [community dashboard pipeline](https://github.com/WHO-Collaboratory/collaboratory-ebola-genomics-community). See [References](#references) for the full list.*
+
+> **Scale.** At the time of writing Pathoplexus holds **1,055 genomes** for the 2026 outbreak (`Bdbv-2026`), up from a handful when this document was first written. Methods below have moved from "under evaluation" to routine use accordingly.
 
 ---
 
@@ -32,7 +34,7 @@ Bait capture has generated the initial genomes from this outbreak and appears a 
 | Kit | Platform | Coverage (Ct 17–25) | Notes |
 |---|---|---|---|
 | [Twist Comprehensive Viral Research Panel](https://www.twistbioscience.com/products/ngs/fixed-panels/comprehensive-viral-research-panel) | Illumina | >99% | Used by INRB (DRC); includes BDBV probes |
-| [Illumina Viral Surveillance Panel V2](https://www.illumina.com/products/by-type/sequencing-kits/library-prep-kits/respiratory-virus-oligos.html) | Illumina | >99% | Used by CPHL (Uganda); BDBV added in V2 |
+| [Illumina Viral Surveillance Panel V2](https://www.illumina.com/products/by-type/sequencing-kits/library-prep-kits/viral-surveillance-panel.html) | Illumina | >99% | Used by CPHL (Uganda); BDBV added in V2 |
 
 > ⚠️ Not all viral bait capture panels include BDBV probes. Confirm panel content before use — notably, earlier versions of some panels do not include BDBV.
 
@@ -47,12 +49,19 @@ Amplicon-based approaches offer lower per-sample cost and higher throughput than
 
 #### Primer Schemes
 
-| Primer Scheme                                                                                    | Amplicon Size (bp) | Reference            | BDBV 2026 Coverage | Platform       | Availability                                        | Notes                                                                                                                          |
-| ------------------------------------------------------------------------------------------------ | ------------------ | -------------------- | ------------------ | -------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| [artic-bdbv-2026/400/v1.0.0](https://labs.primalscheme.com/detail/artic-bdbv-2026/400/v1.0.0/)   | 400                | 2026 epidemic strain | Pending validation | Illumina / ONT | [Primal Scheme Labs](https://labs.primalscheme.com) | Designed specifically for 2026 epidemic strain; validation underway at INRB;                                                   |
-| [artic-pan-ebola/1000/v1.0.0](https://labs.primalscheme.com/detail/artic-pan-ebola/1000/v1.0.0/) | 1000               | Pan-Ebolavirus       | ~50–70%            | Illumina / ONT | [Primal Scheme Labs](https://labs.primalscheme.com) | Tested in DRC and Bernard Nocht; **Insufficient for routine genomic epidemiology at this coverage - v2.0.0 under development** |
+| Primer scheme | Amplicon (bp) | Reference | Scheme status | Genomes recorded | Notes |
+| --- | --- | --- | --- | --- | --- |
+| [artic-bdbv-2026/400/v1.0.0](https://labs.primalscheme.com/?q=bdbv) | 400 | 2026 epidemic strain | **draft** | 194 | Designed for the 2026 epidemic strain by ARTIC and INRB. In field use despite draft status |
+| [artic-pan-ebola/1000/v2.0.0](https://labs.primalscheme.com/?q=ebola) | 1000 | Pan-Ebolavirus | **tested** | 130 | Supersedes v1.0.0. A `v2.0.0-bundibugyo` variant is also published |
+| [artic-pan-ebola/1000/v1.0.0](https://labs.primalscheme.com/?q=ebola) | 1000 | Pan-Ebolavirus | **validated** | — | Gave only ~50–70% coverage on 2026 samples; superseded by v2.0.0 |
 
-> The BDBV-specific scheme (artic-bdbv-2026/400/v1.0.0) is expected to generate the best results across a broad range of sample Ct values and viral titres. Schemes can be requested directly from ARTIC at no cost including shipping via the [ARTIC Primer Foundry](https://artic.network).
+> **Scheme status vs field use are not the same thing.** The "status" column is the label in [Primal Scheme Labs](https://labs.primalscheme.com); "genomes recorded" counts Pathoplexus records naming that protocol. The BDBV-specific 400 bp scheme is still marked *draft* in the repository while being used for ~194 deposited genomes — worth knowing when deciding what to adopt, and worth checking the status again before you do.
+
+> The BDBV-specific scheme is designed against the 2026 epidemic strain and is expected to perform best across a broad range of Ct values. Schemes can be requested directly from ARTIC at no cost including shipping via the [ARTIC Primer Foundry](https://artic.network).
+
+**What is actually being used.** Of the 1,055 genomes deposited for this outbreak, the sequencing protocol recorded in Pathoplexus metadata is amplicon-based for the majority — `Amplicon_ArticPanEbola` (302), `Amplicon_Artic_bdbv/400` (194) and `Amplicon_Artic_pan-ebola/1000/v2.0.0` (130) — with the remainder split across rapid barcoding and Illumina DNA prep. **996 of 1,055 were sequenced on Oxford Nanopore GridION**, with the rest on Illumina platforms. Amplicon sequencing on Nanopore has become the dominant approach for this outbreak, rather than the bait capture that produced the first genomes.
+
+> ⚠️ Protocol metadata is sparsely populated: `ampliconPcrPrimerScheme` is recorded for only 1 of 1,055 records, and `sequencedByOrganization` for 20. Completing these fields at submission materially improves the ability to interpret coverage differences between batches.
 
 ---
 
@@ -84,17 +93,115 @@ The comparison of viral sequences and reconstruction of phylogenetic relationshi
 
 Careful consideration is needed when interpreting sequence relatedness. Genetic proximity between sequences may be consistent with, but cannot be used as evidence for, direct transmission. Phylogenetic results must always be interpreted alongside epidemiological data such as timing, location and contact history. Current limitations include the small number of genomes available and significant geographic bias.
 
-**Alignment strategy.** All Bundibugyo outbreak analyses have used [MAFFT](https://mafft.cbrc.jp/alignment/software/) -based whole-genome multiple sequence alignment via the [raccoon](https://github.com/artic-network/raccoon) / [raccoon-nf](https://github.com/artic-network/raccoon-nf) pipeline
+### Alignment
 
-**Masking.** ADAR-driven hypermutation (T→C transitions in intergenic regions) has been observed in initial 2026 genomes and may need to be masked prior to phylogenetic inference to avoid spurious branch lengths.
+Analyses have used [MAFFT](https://mafft.cbrc.jp/alignment/software/) whole-genome alignment, via the [raccoon](https://github.com/artic-network/raccoon) / [raccoon-nf](https://github.com/artic-network/raccoon-nf) pipeline for QC and masking. [Pathoplexus](https://pathoplexus.org/) also publishes sequences already aligned to the NC_014373 reference, which several groups now use directly.
 
-**Temporal inference.** Because BDBV has a limited number of genomes and a narrow temporal range of sampling, time-calibrated analyses currently require a fixed substitution rate. Initial analyses have used rates of 1.2–1.9 × 10⁻³ substitutions/site/year, based on prior estimates from the 2014–2016 EBOV epidemic; the resulting tMRCA range should be interpreted accordingly.
+> ⚠️ **Align each sequence against the reference, not against each other.** A progressive multiple alignment has nothing anchoring a sequence to the reference, so a genome with a ragged, N-heavy end can have its terminal sequence placed in the wrong columns. In this outbreak that produced a clade of three Nanopore genomes whose 3′ trailers were placed ~224 positions early, registering as ~57 differences each and a long branch that looked like real divergence. Adding a batch of sequences in one call is not sufficient — MAFFT aligns the added set as a group, so genomes that fail the same way slide together. Aligning each sequence to the reference individually (`mafft --add --keeplength`, one sequence at a time) resolves it, and has the side benefit that an alignment column is a genomic position.
+
+### Masking
+
+Three kinds of masking are now standard for this outbreak, and independent groups have converged on them.
+
+**ADAR editing.** ADAR is a host enzyme that converts adenosine to inosine in double-stranded RNA; inosine reads as guanosine, surfacing in these genomes as runs of T→C. Because ADAR is processive, a single editing event leaves a run of changes across tens to hundreds of bases. Counted per site, one event looks like many independent mutations — inflating branch lengths and creating apparent convergent evolution that never happened.
+
+The approach that has emerged is to **keep the first edit of each run and mask the rest to N**, rather than discard the genome:
+
+| Source | Criterion | Scope |
+|---|---|---|
+| [INRB and partners](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-5-october-2026/1051) | ≥3 T→C (or A→G) from the majority base, each within 300 nt | 96 of 838 genomes, 342 positions |
+| [Nextstrain BDBV build](https://github.com/nextstrain/ebola) | ≥3 T→C, each within 200 nt, detected on the phylogeny | Replaced an earlier policy of excluding edited genomes (2026-10-19) |
+
+Keeping the first edit records that the event occurred and leaves the branch supported; masking the rest stops one event being counted many times. N is used rather than reverting to the ancestral base, because the unedited state is not observed.
+
+> ⚠️ If detecting runs **on the tree** rather than per genome, require that T→C changes are a majority of the branch's substitutions. A long branch carrying many substitutions of every kind — for example the ~19-year stem connecting this outbreak to the 2007 reference — will have some T→C falling close together by chance. Without that constraint the stem is called an editing event and the mask propagates to every descendant.
+
+**Genome termini.** The last ~40 positions carry sequencing artefacts and are where ragged ends get misplaced. INRB and partners mask the last 40 positions; an earlier analysis trimmed the alignment to 18,900. The Nextstrain build masks 50 from each end.
+
+**Site 7461.** The Nextstrain BDBV build masks this position, described as a polymorphic site in a variable region in GP that conflicts with outgroup rooting.
+
+### Rooting
+
+Two approaches are in use, and they are not equivalent:
+
+- **Outgroup rooting** on the 2007 BDBV reference (NC_014373) or another pre-2026 genome.
+- **Residual minimisation** — rooting to minimise residuals from the root-to-tip regression, as used by [INRB and partners](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046), who then iteratively removed genomes outside ±2 SD of the residuals.
+- The published [Nextstrain BDBV build](https://nextstrain.org/ebola/bdbv) uses **midpoint rooting** (`augur refine --root mid_point`).
+
+The 2026 clade is monophyletic relative to 2007 under all of these, so the MRCA of the outbreak is not in question. What differs is the branching order *within* the outbreak, which rests on one or two substitutions and is not resolved — different pipelines will disagree about which lineage branches first, and that disagreement should not be over-interpreted.
+
+### Temporal inference
+
+Early analyses used a fixed substitution rate of 1.2–1.9 × 10⁻³ substitutions/site/year borrowed from the 2014–2016 EBOV epidemic. **This is no longer necessary**: the rate has now been estimated from BDBV data directly.
+
+| Estimate | Value | Source |
+|---|---|---|
+| Evolutionary rate | 8.5 × 10⁻⁴ subs/site/year (95% HPD 7.3–9.8 × 10⁻⁴) | [100-day window analysis](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046), SkyGrid |
+| tMRCA | 22 February 2026 (95% HPD 16 Jan – 24 Mar 2026) | as above |
+| Root-to-tip slope | 7.9 × 10⁻⁴ | as above |
+
+Note this is roughly **half** the EBOV-derived rate previously assumed, so tMRCA estimates based on the older figure will have been too recent.
+
+Reproduction number estimates are now available over the course of the outbreak, from [Delphy](https://github.com/broadinstitute/delphy) and BEAST X analyses: R ≈ 1.94 (95% HPD 1.57–2.31) before the outbreak was declared, falling to 1.27 (1.00–1.56) for 15 May – 15 June and 0.86 (0.73–0.99) for 15 June – 27 September. See the [October post](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-5-october-2026/1051) for the caveats, which are substantial.
+
+### Convergent mutations and selection
+
+Recurrent mutations are sometimes read as evidence of adaptation. For this outbreak the evidence does not support that, and the analysis is easy to get wrong.
+
+Counting homoplasy by asking whether carriers of an allele are monophyletic is **rooting-dependent and conflates several things**: convergence, reversion, tree error and missing data all produce non-monophyly. Reconstructing ancestral states and counting substitutions per branch is more direct. On that basis, and after ADAR masking, the dashboard analysis finds that most recurrence sits on **terminal branches** — private to a single genome and indistinguishable from a sequencing or consensus-calling error — and that recurrent substitutions are ~94% transitions against a ~33% chance expectation, and are *depleted* rather than enriched for protein-changing changes.
+
+This is consistent with the independent conclusion from the [100-day window analysis](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046), which reported no indication of fitness-altering mutations or of any lineage beginning to dominate.
+
+> ⚠️ Mutational hotspots and RNA editing are the main confounders. Recurrence alone is not evidence of selection; an explicit test such as [HyPhy MEME](https://www.hyphy.org/methods/selection-methods/) is required before any such claim.
 
 ## Data Sharing
 
 WHO strongly encourages countries and laboratories to share genome sequence data and associated metadata, and where appropriate and feasible, raw sequence data, through publicly accessible databases in a timely manner to support global surveillance and risk assessment.
 
-All BDBV genomes from the 2026 outbreak are being deposited in [Pathoplexus](https://pathoplexus.org/), which now supports BDBV sequences.  A phylogenetic representation of the BDBV genomes is being maintained by [Nextstrain](https://nextstrain.org/ebola/bdbv) and curated by INRB colleagues.
+All BDBV genomes from the 2026 outbreak are being deposited in [Pathoplexus](https://pathoplexus.org/), which now supports BDBV sequences. A phylogenetic representation is maintained by [Nextstrain](https://nextstrain.org/ebola/bdbv) and curated by INRB colleagues.
+
+**Citing the data.** Pathoplexus SeqSets give a citable, versioned snapshot of the genomes used in an analysis, and should be cited rather than "downloaded from Pathoplexus on date X":
+
+| SeqSet | Contents | DOI |
+|---|---|---|
+| `BDBV_DRC_20260820` | 626 genomes, DRC, sampled 2026-05-02 to 2026-08-09 | [PP_SS_3400.1](https://pathoplexus.org/seqsets/PP_SS_3400.1) |
+| `BDBV_DRC_20260831` | Genomes underlying the medRxiv preprint below | [10.62599/PP_SS_4291.1](https://doi.org/10.62599/PP_SS_4291.1) |
+
+Use of the data is governed by the [Pathoplexus Data Use Terms](https://pathoplexus.org/about/terms-of-use/data-use-terms). Note that the great majority of 2026 BDBV genomes are currently under **Restricted Use** terms, which carry obligations on how they may be analysed and published.
+
+> ⚠️ **The Nextstrain `ebola/bdbv` build is now subsampled.** Since 2026-09-30 it takes 25 genomes per month (`group_by: [year, month]`, `sequences_per_group: 25`) and excludes genomes failing Nextclade QC. It is a representative subsample, not the full dataset — at the time of writing it contains ~130 of the 1,055 available 2026 genomes. Use it for an overview; build from Pathoplexus directly for analyses that need every genome.
+
+---
+
+## References
+
+### Preprint
+
+- Wawina-Bokalanga T, Akilimali P, Pekar JE, *et al.* (69 authors; senior authors Kraemer MUG, Rambaut A, Mbala-Kingebeni P). **Temporal and Phylodynamic analyses of the 2026 Bundibugyo virus disease outbreak in the Democratic Republic of the Congo.** *medRxiv*, 7 October 2026. [doi:10.64898/2026.10.07.26365001](https://doi.org/10.64898/2026.10.07.26365001)
+  Covers 686 PCR-confirmed individuals across 22 health zones, May–August 2026 — background, sample collection, sequencing and analysis. **The primary citation for this outbreak's genomic epidemiology.**
+
+### Virological posts
+
+From INRB Kinshasa and partners unless noted. Listed most recent first.
+
+| Date | Post |
+|---|---|
+| Oct 2026 | [Reproduction number over time — genomes to 5 October 2026](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-5-october-2026/1051) — Delphy and BEAST X; ADAR masking criteria; terminal masking |
+| Oct 2026 | [Reproduction number over time — genomes to 6 September 2026](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-6-september-2026/1047) |
+| Oct 2026 | [Temporal and Phylodynamic analyses of the 2026 BVD outbreak in the DRC](https://virological.org/t/temporal-and-phylodynamic-analyses-of-the-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo/1048) — announces the preprint above |
+| Oct 2026 | [Phylodynamics and evolution: insights from a 100-day window](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046) — evolutionary rate, tMRCA, ADAR handling, rooting by residual minimisation |
+| Jul 2026 | [Genomic epidemiology of the ongoing 2026 BVD outbreak in the DRC](https://virological.org/t/genomic-epidemiology-of-the-ongoing-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo/1045) — laboratory and sequencing methods |
+| Jul 2026 | [Molecular evolutionary analysis of the current BVD outbreak in DRC and Uganda](https://virological.org/t/molecular-evolutionary-analysis-of-the-current-bundibugyo-virus-disease-outbreak-in-drc-and-uganda/1042) |
+| Jun 2026 | [Initial genomes from the May 2026 BVD outbreak in the DRC and Uganda](https://virological.org/t/initial-genomes-from-may-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo-and-uganda/1032) |
+
+### Tools and resources
+
+- [ARTIC BDBV Sequencing Guide](https://artic.network/viruses/bdbv/bdbv-sequencing-guide.html) · [Primal Scheme Labs](https://labs.primalscheme.com) · [ARTIC Primer Foundry](https://artic.network)
+- [amplicon-nf](https://github.com/artic-network/amplicon-nf) — consensus generation; v2 used for the genomes in the posts above
+- [raccoon](https://github.com/artic-network/raccoon) — alignment QC and masking
+- [nextstrain/ebola](https://github.com/nextstrain/ebola) — build definitions, including the ADAR detection script and masking configuration
+- [IQ-TREE 3](http://www.iqtree.org/) · [BEAST X](https://beast.community/) · [Delphy](https://github.com/broadinstitute/delphy) · [MAFFT](https://mafft.cbrc.jp/alignment/software/)
+- [This repository](https://github.com/WHO-Collaboratory/collaboratory-ebola-genomics-community) — the dashboard pipeline, including the ADAR masking and convergence analysis described above
 
 ---
 
