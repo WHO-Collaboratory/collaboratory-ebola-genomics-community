@@ -77,13 +77,20 @@ There are several enrichment protocols that can be utilised to increase the cove
 
 ## Bioinformatic Workflows for Consensus Generation
 
-Generating a BDBV consensus sequence requires multiple bioinformatic steps including host read removal, quality trimming, primer trimming (for amplicon data), mapping to a reference genome, and variant calling. End-to-end pipelines that integrate these steps are listed below, grouped by sequencing approach. Pipelines typically use a workflow management system (Nextflow or WDL) and containerisation (Docker or Singularity) to enable reproducible deployment across different environments.
+Generating a BDBV consensus sequence requires multiple bioinformatic steps including host read removal, quality trimming, primer trimming (for amplicon data), mapping to a reference genome, and variant calling. End-to-end pipelines that integrate these steps are listed below. Pipelines typically use a workflow management system (Nextflow or WDL) and containerisation (Docker or Singularity) to enable reproducible deployment across different environments.
 
-| **Pipeline**                                                              | **Approach** | **Platform**   | **Workflow** | **Containerised**    | **Host removal** | **Trimming**      | **Primer removal** | **Mapping**    | **Variant calling**        | **Used in 2026 outbreak**                       |
-| ------------------------------------------------------------------------- | ------------ | -------------- | ------------ | -------------------- | ---------------- | ----------------- | ------------------ | -------------- | -------------------------- | ----------------------------------------------- |
-| [nf-core/viralrecon](https://github.com/nf-core/viralrecon)               | Bait capture | Illumina       | Nextflow     | Docker / Singularity | Kraken2          | fastp             | —                  | bowtie2        | ivar / samtools / bcftools | INRB (DRC) — Twist panel data                   |
-| [artic-network/amplicon-nf](https://github.com/artic-network/amplicon-nf) | Amplicon     | Illumina / ONT | Nextflow     | Docker / Singularity | Hostile          | fastp / guppyplex | ivar / artic       | bwa / minimap2 | ivar / medaka              | Recommended for artic-bdbv-2026 amplicon scheme |
+Two pipelines account for the published genomes of this outbreak, selected by sequencing platform rather than by enrichment approach. The [medRxiv preprint](#references) reports ARTIC `amplicon-nf` v2.0 for Oxford Nanopore reads and nf-core `viralrecon` 2.6.0 for Illumina reads, the latter applied to Illumina DNA Prep with enrichment as well as to probe-based capture data.
 
+| **Pipeline** | **Platform** | **Approach** | **Version reported** | **Workflow** | **Containerised** | **Host removal** | **Trimming** | **Primer removal** | **Mapping** | **Variant calling** | **Use in the 2026 outbreak** |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [artic-network/amplicon-nf](https://github.com/artic-network/amplicon-nf) | ONT (also supports Illumina) | Amplicon | 2.0 | Nextflow | Docker / Singularity | Hostile | fastp / guppyplex | ivar / artic | bwa / minimap2 | ivar / medaka | Nanopore reads, accounting for the large majority of deposited genomes; recommended for the artic-bdbv-2026 scheme |
+| [nf-core/viralrecon](https://github.com/nf-core/viralrecon) | Illumina | Capture and enrichment | 2.6.0 | Nextflow | Docker / Singularity | Kraken2 | fastp | — | bowtie2 | ivar / samtools / bcftools | Illumina reads at INRB Kinshasa, covering Twist panel data and Illumina DNA Prep with enrichment |
+
+**Usage.** Of the 1,055 genomes deposited for this outbreak, 996 (94%) were sequenced on Oxford Nanopore GridION and 59 (6%) on Illumina platforms, so the Nanopore route accounts for the large majority of consensus generation. Bait capture, which produced the first genomes of the outbreak, now accounts for approximately 20 records (2%). A further 364 genomes (34%) record only a rapid barcoding library preparation (`Napid-Barcoding` 263, `Rapid-Barcoding` 86, `Rapid barcoding` 15, all on GridION). Rapid barcoding may be applied to either amplicon or metagenomic material, so for these genomes the consensus route cannot be determined from the submitted metadata.
+
+**Post-consensus quality control.** [raccoon](https://github.com/artic-network/raccoon) and its Nextflow wrapper [raccoon-nf](https://github.com/artic-network/raccoon-nf) are applied to consensus genomes rather than to reads, and perform the quality control and ADAR masking described under [Masking](#masking). The preprint reports raccoon run with default parameters.
+
+> ⚠️ `consensusSequenceSoftwareName` is populated for 5 of 1,055 records. The pipelines described in this section are therefore drawn from the preprint and the ARTIC sequencing guide rather than from submitted metadata. Recording the pipeline and its version at submission would allow consensus generation route to be related to observed differences in coverage and genome quality.
 
 ---
 
