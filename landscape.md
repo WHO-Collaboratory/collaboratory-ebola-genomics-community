@@ -194,12 +194,12 @@ From INRB Kinshasa and partners unless noted. Listed most recent first.
 | Date | Post |
 |---|---|
 | Oct 2026 | [Reproduction number over time — genomes to 5 October 2026](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-5-october-2026/1051) — Delphy and BEAST X; ADAR masking criteria; terminal masking |
-| Oct 2026 | [Reproduction number over time — genomes to 6 September 2026](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-6-september-2026/1047) |
 | Oct 2026 | [Temporal and Phylodynamic analyses of the 2026 BVD outbreak in the DRC](https://virological.org/t/temporal-and-phylodynamic-analyses-of-the-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo/1048) — announces the preprint above |
-| Oct 2026 | [Phylodynamics and evolution: insights from a 100-day window](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046) — evolutionary rate, tMRCA, ADAR handling, rooting by residual minimisation |
+| Oct 2026 | [Reproduction number over time — genomes to 6 September 2026](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-6-september-2026/1047) |
+| Aug 2026 | [Phylodynamics and evolution: insights from a 100-day window](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046) — evolutionary rate, tMRCA, ADAR handling, rooting by residual minimisation |
 | Jul 2026 | [Genomic epidemiology of the ongoing 2026 BVD outbreak in the DRC](https://virological.org/t/genomic-epidemiology-of-the-ongoing-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo/1045) — laboratory and sequencing methods |
-| Jul 2026 | [Molecular evolutionary analysis of the current BVD outbreak in DRC and Uganda](https://virological.org/t/molecular-evolutionary-analysis-of-the-current-bundibugyo-virus-disease-outbreak-in-drc-and-uganda/1042) |
-| Jun 2026 | [Initial genomes from the May 2026 BVD outbreak in the DRC and Uganda](https://virological.org/t/initial-genomes-from-may-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo-and-uganda/1032) |
+| Jun 2026 | [Molecular evolutionary analysis of the current BVD outbreak in DRC and Uganda](https://virological.org/t/molecular-evolutionary-analysis-of-the-current-bundibugyo-virus-disease-outbreak-in-drc-and-uganda/1042) |
+| May 2026 | [Initial genomes from the May 2026 BVD outbreak in the DRC and Uganda](https://virological.org/t/initial-genomes-from-may-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo-and-uganda/1032) |
 
 ### Tools and resources
 
