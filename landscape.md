@@ -36,7 +36,7 @@ Bait capture has generated the initial genomes from this outbreak and appears a 
 | [Twist Comprehensive Viral Research Panel](https://www.twistbioscience.com/products/ngs/fixed-panels/comprehensive-viral-research-panel) | Illumina | >99% | Used by INRB (DRC); includes BDBV probes |
 | [Illumina Viral Surveillance Panel V2](https://www.illumina.com/products/by-type/sequencing-kits/library-prep-kits/viral-surveillance-panel.html) | Illumina | >99% | Used by CPHL (Uganda); BDBV added in V2 |
 
-> ⚠️ Not all viral bait capture panels include BDBV probes. Confirm panel content before use — notably, earlier versions of some panels do not include BDBV.
+> ⚠️ Not all viral bait capture panels include BDBV probes. Panel content should be confirmed before use; earlier versions of some panels do not include BDBV.
 
 
 ---
@@ -55,11 +55,11 @@ Amplicon-based approaches offer lower per-sample cost and higher throughput than
 | [artic-pan-ebola/1000/v2.0.0](https://labs.primalscheme.com/?q=ebola) | 1000 | Pan-Ebolavirus | **tested** | 130 | Supersedes v1.0.0. A `v2.0.0-bundibugyo` variant is also published |
 | [artic-pan-ebola/1000/v1.0.0](https://labs.primalscheme.com/?q=ebola) | 1000 | Pan-Ebolavirus | **validated** | — | Gave only ~50–70% coverage on 2026 samples; superseded by v2.0.0 |
 
-> **Scheme status vs field use are not the same thing.** The "status" column is the label in [Primal Scheme Labs](https://labs.primalscheme.com); "genomes recorded" counts Pathoplexus records naming that protocol. The BDBV-specific 400 bp scheme is still marked *draft* in the repository while being used for ~194 deposited genomes — worth knowing when deciding what to adopt, and worth checking the status again before you do.
+> **Scheme status and field use are distinct.** The "status" column reproduces the label recorded in [Primal Scheme Labs](https://labs.primalscheme.com); "genomes recorded" counts Pathoplexus records naming that protocol. The BDBV-specific 400 bp scheme remains marked *draft* in the repository while having been used for approximately 194 deposited genomes. Both should be taken into account when selecting a scheme, and the current status should be confirmed at the time of adoption.
 
 > The BDBV-specific scheme is designed against the 2026 epidemic strain and is expected to perform best across a broad range of Ct values. Schemes can be requested directly from ARTIC at no cost including shipping via the [ARTIC Primer Foundry](https://artic.network).
 
-**What is actually being used.** Of the 1,055 genomes deposited for this outbreak, the sequencing protocol recorded in Pathoplexus metadata is amplicon-based for the majority — `Amplicon_ArticPanEbola` (302), `Amplicon_Artic_bdbv/400` (194) and `Amplicon_Artic_pan-ebola/1000/v2.0.0` (130) — with the remainder split across rapid barcoding and Illumina DNA prep. **996 of 1,055 were sequenced on Oxford Nanopore GridION**, with the rest on Illumina platforms. Amplicon sequencing on Nanopore has become the dominant approach for this outbreak, rather than the bait capture that produced the first genomes.
+**Methods in current use.** Of the 1,055 genomes deposited for this outbreak, the sequencing protocol recorded in Pathoplexus metadata is amplicon-based for the majority — `Amplicon_ArticPanEbola` (302), `Amplicon_Artic_bdbv/400` (194) and `Amplicon_Artic_pan-ebola/1000/v2.0.0` (130) — with the remainder split across rapid barcoding and Illumina DNA prep. **996 of 1,055 were sequenced on Oxford Nanopore GridION**, with the rest on Illumina platforms. Amplicon sequencing on Nanopore has become the dominant approach for this outbreak, rather than the bait capture that produced the first genomes.
 
 > ⚠️ Protocol metadata is sparsely populated: `ampliconPcrPrimerScheme` is recorded for only 1 of 1,055 records, and `sequencedByOrganization` for 20. Completing these fields at submission materially improves the ability to interpret coverage differences between batches.
 
@@ -97,13 +97,13 @@ Careful consideration is needed when interpreting sequence relatedness. Genetic 
 
 Analyses have used [MAFFT](https://mafft.cbrc.jp/alignment/software/) whole-genome alignment, via the [raccoon](https://github.com/artic-network/raccoon) / [raccoon-nf](https://github.com/artic-network/raccoon-nf) pipeline for QC and masking. [Pathoplexus](https://pathoplexus.org/) also publishes sequences already aligned to the NC_014373 reference, which several groups now use directly.
 
-> ⚠️ **Prefer reference-anchored alignment.** In a progressive multiple alignment nothing holds a sequence to the reference, so a genome with a ragged, N-heavy terminus can have its end placed in the wrong columns — which appears downstream as a long branch indistinguishable from real divergence. Anchoring each sequence to the reference avoids this and keeps alignment columns equal to genomic positions.
+> ⚠️ **Reference-anchored alignment is preferred.** In a progressive multiple alignment no constraint holds an individual sequence to the reference, so a genome with a ragged, N-rich terminus may have its end placed in the wrong columns. Downstream this appears as a long branch that cannot be distinguished from genuine divergence. Anchoring each sequence to the reference avoids this and keeps alignment columns equivalent to genomic positions.
 
 ### Masking
 
 Three kinds of masking are now standard for this outbreak, and independent groups have converged on them.
 
-**ADAR editing.** ADAR is a host enzyme that converts adenosine to inosine in double-stranded RNA; inosine reads as guanosine, surfacing in these genomes as runs of T→C. Because ADAR is processive, a single editing event leaves a run of changes across tens to hundreds of bases. Counted per site, one event looks like many independent mutations — inflating branch lengths and creating apparent convergent evolution that never happened.
+**ADAR editing.** ADAR is a host enzyme that converts adenosine to inosine in double-stranded RNA; inosine reads as guanosine, surfacing in these genomes as runs of T→C. Because ADAR is processive, a single editing event leaves a run of changes across tens to hundreds of bases. Counted per site, a single event appears as many independent mutations, inflating branch lengths and creating the appearance of convergent evolution where none has occurred.
 
 The approach that has emerged is to **keep the first edit of each run and mask the rest to N**, rather than discard the genome:
 
@@ -114,9 +114,9 @@ The approach that has emerged is to **keep the first edit of each run and mask t
 
 Keeping the first edit records that the event occurred and leaves the branch supported; masking the rest stops one event being counted many times. N is used rather than reverting to the ancestral base, because the unedited state is not observed.
 
-> ⚠️ Detection per genome against the majority base, and detection on the phylogeny, do not give the same answer. On a long branch carrying many substitutions of every kind, some T→C will fall close together by chance and be mistaken for an editing event. Whichever approach is used, it is worth checking the number of genomes flagged against an independent analysis of the same data.
+> ⚠️ Detection per genome against the majority base, and detection on the phylogeny, do not give the same answer. On a long branch carrying many substitutions of every kind, some T→C will fall close together by chance and be mistaken for an editing event. Whichever approach is used, the number of genomes flagged should be compared against an independent analysis of the same data.
 
-**Genome termini.** The last ~40 positions carry sequencing artefacts and are where ragged ends get misplaced. INRB and partners mask the last 40 positions; an earlier analysis trimmed the alignment to 18,900. The Nextstrain build masks 50 from each end.
+**Genome termini.** The terminal positions carry sequencing artefacts and are where ragged genome ends are most often misplaced during alignment. INRB and partners mask the last 40 positions; an earlier analysis trimmed the alignment to 18,900. The Nextstrain build masks 50 from each end.
 
 **Site 7461.** The Nextstrain BDBV build masks this position, described as a polymorphic site in a variable region in GP that conflicts with outgroup rooting.
 
@@ -146,7 +146,7 @@ Reproduction number estimates are now available over the course of the outbreak,
 
 ### Convergent mutations and selection
 
-Recurrent mutations are sometimes read as evidence of adaptation. For this outbreak the evidence does not support that, and the analysis is easy to get wrong.
+Recurrent mutations are sometimes interpreted as evidence of adaptation. For this outbreak the available evidence does not support that interpretation, and the conclusion reached is sensitive to the analytical method used.
 
 Testing homoplasy by asking whether carriers of an allele are monophyletic is **rooting-dependent and conflates several things**: convergence, reversion, tree error and missing data all produce non-monophyly. Reconstructing ancestral states and counting substitutions per branch is more direct, and distinguishes a mutation arising on several internal branches — each origin inherited by descendants — from one appearing on terminal branches only, where it cannot be told apart from a sequencing or consensus-calling error.
 
@@ -169,7 +169,7 @@ All BDBV genomes from the 2026 outbreak are being deposited in [Pathoplexus](htt
 
 Use of the data is governed by the [Pathoplexus Data Use Terms](https://pathoplexus.org/about/terms-of-use/data-use-terms). Note that the great majority of 2026 BDBV genomes are currently under **Restricted Use** terms, which carry obligations on how they may be analysed and published.
 
-> ⚠️ **The Nextstrain `ebola/bdbv` build is now subsampled.** Since 2026-09-30 it takes 25 genomes per month (`group_by: [year, month]`, `sequences_per_group: 25`) and excludes genomes failing Nextclade QC. It is a representative subsample, not the full dataset — at the time of writing it contains ~130 of the 1,055 available 2026 genomes. Use it for an overview; build from Pathoplexus directly for analyses that need every genome.
+> ⚠️ **The Nextstrain `ebola/bdbv` build is now subsampled.** Since 2026-09-30 it takes 25 genomes per month (`group_by: [year, month]`, `sequences_per_group: 25`) and excludes genomes failing Nextclade QC. It is a representative subsample rather than the full dataset: at the time of writing it contains approximately 130 of the 1,055 available 2026 genomes. It is suitable for an overview, but analyses requiring the complete dataset should be built from Pathoplexus directly.
 
 ---
 
