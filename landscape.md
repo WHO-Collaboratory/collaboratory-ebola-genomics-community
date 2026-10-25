@@ -11,7 +11,7 @@ In an effort to help countries navigate the available wet-lab and dry-lab approa
 We welcome updates either through pull-requests or via issues to this repository.
 
 > **Last updated:** 2026-10-25  
-> *Based on the [ARTIC BDBV Sequencing Guide v1.0.0](https://artic.network/viruses/bdbv/bdbv-sequencing-guide.html), the [Virological posts](#references) from INRB Kinshasa and partners, and the methods deployed in the [community dashboard pipeline](https://github.com/WHO-Collaboratory/collaboratory-ebola-genomics-community). See [References](#references) for the full list.*
+> *Based on the [ARTIC BDBV Sequencing Guide v1.0.0](https://artic.network/viruses/bdbv/bdbv-sequencing-guide.html), the [medRxiv preprint and Virological posts](#references) from INRB Kinshasa and partners, and the [Nextstrain BDBV build](https://github.com/nextstrain/ebola). See [References](#references) for the full list.*
 
 > **Scale.** At the time of writing Pathoplexus holds **1,055 genomes** for the 2026 outbreak (`Bdbv-2026`), up from a handful when this document was first written. Methods below have moved from "under evaluation" to routine use accordingly.
 
@@ -97,7 +97,7 @@ Careful consideration is needed when interpreting sequence relatedness. Genetic 
 
 Analyses have used [MAFFT](https://mafft.cbrc.jp/alignment/software/) whole-genome alignment, via the [raccoon](https://github.com/artic-network/raccoon) / [raccoon-nf](https://github.com/artic-network/raccoon-nf) pipeline for QC and masking. [Pathoplexus](https://pathoplexus.org/) also publishes sequences already aligned to the NC_014373 reference, which several groups now use directly.
 
-> ⚠️ **Align each sequence against the reference, not against each other.** A progressive multiple alignment has nothing anchoring a sequence to the reference, so a genome with a ragged, N-heavy end can have its terminal sequence placed in the wrong columns. In this outbreak that produced a clade of three Nanopore genomes whose 3′ trailers were placed ~224 positions early, registering as ~57 differences each and a long branch that looked like real divergence. Adding a batch of sequences in one call is not sufficient — MAFFT aligns the added set as a group, so genomes that fail the same way slide together. Aligning each sequence to the reference individually (`mafft --add --keeplength`, one sequence at a time) resolves it, and has the side benefit that an alignment column is a genomic position.
+> ⚠️ **Prefer reference-anchored alignment.** In a progressive multiple alignment nothing holds a sequence to the reference, so a genome with a ragged, N-heavy terminus can have its end placed in the wrong columns — which appears downstream as a long branch indistinguishable from real divergence. Anchoring each sequence to the reference avoids this and keeps alignment columns equal to genomic positions.
 
 ### Masking
 
@@ -114,7 +114,7 @@ The approach that has emerged is to **keep the first edit of each run and mask t
 
 Keeping the first edit records that the event occurred and leaves the branch supported; masking the rest stops one event being counted many times. N is used rather than reverting to the ancestral base, because the unedited state is not observed.
 
-> ⚠️ If detecting runs **on the tree** rather than per genome, require that T→C changes are a majority of the branch's substitutions. A long branch carrying many substitutions of every kind — for example the ~19-year stem connecting this outbreak to the 2007 reference — will have some T→C falling close together by chance. Without that constraint the stem is called an editing event and the mask propagates to every descendant.
+> ⚠️ Detection per genome against the majority base, and detection on the phylogeny, do not give the same answer. On a long branch carrying many substitutions of every kind, some T→C will fall close together by chance and be mistaken for an editing event. Whichever approach is used, it is worth checking the number of genomes flagged against an independent analysis of the same data.
 
 **Genome termini.** The last ~40 positions carry sequencing artefacts and are where ragged ends get misplaced. INRB and partners mask the last 40 positions; an earlier analysis trimmed the alignment to 18,900. The Nextstrain build masks 50 from each end.
 
@@ -148,9 +148,9 @@ Reproduction number estimates are now available over the course of the outbreak,
 
 Recurrent mutations are sometimes read as evidence of adaptation. For this outbreak the evidence does not support that, and the analysis is easy to get wrong.
 
-Counting homoplasy by asking whether carriers of an allele are monophyletic is **rooting-dependent and conflates several things**: convergence, reversion, tree error and missing data all produce non-monophyly. Reconstructing ancestral states and counting substitutions per branch is more direct. On that basis, and after ADAR masking, the dashboard analysis finds that most recurrence sits on **terminal branches** — private to a single genome and indistinguishable from a sequencing or consensus-calling error — and that recurrent substitutions are ~94% transitions against a ~33% chance expectation, and are *depleted* rather than enriched for protein-changing changes.
+Testing homoplasy by asking whether carriers of an allele are monophyletic is **rooting-dependent and conflates several things**: convergence, reversion, tree error and missing data all produce non-monophyly. Reconstructing ancestral states and counting substitutions per branch is more direct, and distinguishes a mutation arising on several internal branches — each origin inherited by descendants — from one appearing on terminal branches only, where it cannot be told apart from a sequencing or consensus-calling error.
 
-This is consistent with the independent conclusion from the [100-day window analysis](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046), which reported no indication of fitness-altering mutations or of any lineage beginning to dominate.
+Applied to this outbreak, recurrence is overwhelmingly on terminal branches, dominated by transitions, and *depleted* rather than enriched for protein-changing substitutions. That is the signature of mutational hotspots and RNA editing, not adaptation, and is consistent with the [100-day window analysis](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046), which reported no indication of fitness-altering mutations or of any lineage beginning to dominate.
 
 > ⚠️ Mutational hotspots and RNA editing are the main confounders. Recurrence alone is not evidence of selection; an explicit test such as [HyPhy MEME](https://www.hyphy.org/methods/selection-methods/) is required before any such claim.
 
@@ -201,7 +201,7 @@ From INRB Kinshasa and partners unless noted. Listed most recent first.
 - [raccoon](https://github.com/artic-network/raccoon) — alignment QC and masking
 - [nextstrain/ebola](https://github.com/nextstrain/ebola) — build definitions, including the ADAR detection script and masking configuration
 - [IQ-TREE 3](http://www.iqtree.org/) · [BEAST X](https://beast.community/) · [Delphy](https://github.com/broadinstitute/delphy) · [MAFFT](https://mafft.cbrc.jp/alignment/software/)
-- [This repository](https://github.com/WHO-Collaboratory/collaboratory-ebola-genomics-community) — the dashboard pipeline, including the ADAR masking and convergence analysis described above
+- [This repository](https://github.com/WHO-Collaboratory/collaboratory-ebola-genomics-community) — an open implementation of the alignment, masking and convergence steps described above
 
 ---
 
