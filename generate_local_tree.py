@@ -162,13 +162,26 @@ while '()' in newick:
     newick = newick.replace('()', '')
 
 # Helper to calculate ISO week number
+def is_precise_date(date_str):
+    """True only for a full YYYY-MM-DD.
+
+    Pathoplexus also carries partial dates ("2026-05") and ranges
+    ("2026-01-01/2026-08-28", a span of eight months). Taking the first ten
+    characters of a range turns an unknown date into a precise one: one such
+    record was rendered as epi week 1 against a real range of 18-43, which
+    stretched the colour scale so that almost every genome fell in the top
+    half of it and the tree looked uniformly coloured.
+    """
+    return bool(re.fullmatch(r'\d{4}-\d{2}-\d{2}', (date_str or '').strip()))
+
+
 def iso_epi_week(date_str):
-    if not date_str or len(date_str) < 10:
+    if not is_precise_date(date_str):
         return ''
     try:
-        d = datetime.strptime(date_str[:10], '%Y-%m-%d')
+        d = datetime.strptime(date_str.strip(), '%Y-%m-%d')
         return str(d.isocalendar()[1])
-    except:
+    except ValueError:
         return ''
 
 # Add metadata attributes
@@ -181,7 +194,12 @@ def add_metadata(match):
     country = m.get('geoLocCountry', '')
     admin1 = m.get('geoLocAdmin1', '')
     admin2 = m.get('geoLocAdmin2', '')
-    date = m.get('sampleCollectionDate', '')
+    date = m.get('sampleCollectionDate', '') or ''
+    # Only a day-precise date is published as the tip's date. PearTree reads
+    # this for the root-to-tip regression and the time axis, so a range or a
+    # partial date must not be passed off as a point in time.
+    if not is_precise_date(date):
+        date = ''
 
     loc = admin2 or admin1 or country
     epiweek = iso_epi_week(date)
