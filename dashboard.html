@@ -1070,6 +1070,18 @@
         },
       });
       window._bdbvTreeCtrl = ctrl;
+      document.title = 'IPSN | BDBV Dashboard';  // PearTree sets it from the filename
+
+      // Reveal the tree controls once a tree is actually on screen. This used
+      // to happen only at the end of initPearTree's Nextstrain path; with the
+      // local tree as the default that path no longer runs, which left the
+      // colour toggle, the root-to-tip button and the search box hidden.
+      for (const [id, display] of [['tree-colour-toggle', 'flex'],
+                                   ['btn-toggle-rtt', 'inline-block'],
+                                   ['tree-search', 'flex']]) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = display;
+      }
 
       // Update status text based on tree source
       const tipCount = (treeToEmbed.match(/\[&accession=/g) || []).length;
