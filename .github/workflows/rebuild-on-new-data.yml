@@ -137,6 +137,29 @@ jobs:
           print("\nSanity checks passed.")
           PY
 
+      - name: Re-base the outputs on the current main
+        if: steps.check.outputs.run == 'yes'
+        run: |
+          # The analysis takes over an hour, and main can gain commits while it
+          # runs. create-pull-request branches from the commit checked out at
+          # the start, so a stale base makes the branch look like it reverts
+          # everything merged since. When one of those commits touches a
+          # workflow file the push is rejected outright:
+          #   refusing to allow a GitHub App to create or update workflow
+          #   `.github/workflows/...` without `workflows` permission
+          # Reset to the current main and carry only the generated outputs
+          # across, so the branch contains the analysis and nothing else.
+          OUT="$RUNNER_TEMP/outputs"
+          mkdir -p "$OUT"
+          for f in homoplasy_data.json local_tree.nwk \
+                   asr_run_homoplasy_report.txt asr_run_adar_report.txt; do
+            cp "$f" "$OUT/"
+          done
+          git fetch origin main
+          git reset --hard origin/main      # restores .github/data-versions.json
+          cp "$OUT"/* .
+          git --no-pager diff --stat
+
       - name: Record the count that was analysed
         if: steps.check.outputs.run == 'yes'
         run: |
