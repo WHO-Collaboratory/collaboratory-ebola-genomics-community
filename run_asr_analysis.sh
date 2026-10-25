@@ -109,7 +109,10 @@ else
     # rerun starts from the same place.
     ACTIVE_ALIGNMENT="${PREFIX}_input.adar.fasta"
     ACTIVE_PREFIX="${PREFIX}_adar"
-    cp "${PREFIX}.treefile" "${ACTIVE_PREFIX}.treefile"
+    # Do NOT copy the first-pass tree over it. The -te run keeps the topology
+    # but re-estimates branch lengths on the masked alignment, and those are
+    # the lengths that should be shown and analysed: an unmasked branch is
+    # inflated by edits that are one event, not many.
 fi
 
 echo
@@ -133,7 +136,7 @@ echo
 echo "== rebuilding dashboard tree =="
 # Same tree the convergence analysis ran on, so carrier highlighting in the
 # homoplasy panel matches the tips actually analysed.
-python3 generate_local_tree.py "${PREFIX}.treefile"
+python3 generate_local_tree.py "${ACTIVE_PREFIX}.treefile"
 
 echo
 echo "Done."
