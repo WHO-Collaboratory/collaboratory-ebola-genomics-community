@@ -35,7 +35,11 @@ MASK_END="${MASK_END:-40}"
 # edited genomes are deliberately NOT excluded - their edits are masked instead.
 EXCLUDE_FILE="${EXCLUDE_FILE:-defaults/exclude_bdbv.txt}"
 
-[ -x "$IQTREE" ] || { echo "IQ-TREE not found at $IQTREE (set IQTREE=)"; exit 1; }
+# Accept either a path or a command on PATH (see run_pathoplexus_pipeline.sh).
+if [ ! -x "$IQTREE" ] && ! command -v "$IQTREE" >/dev/null 2>&1; then
+    echo "IQ-TREE not found: $IQTREE (set IQTREE= to a path, or put it on PATH)"
+    exit 1
+fi
 [ -f "$ALIGN" ]   || { echo "Alignment not found: $ALIGN"; exit 1; }
 [ -f "$GENBANK" ] || { echo "GenBank not found: $GENBANK (set GENBANK=)"; exit 1; }
 

@@ -10,7 +10,8 @@ set -e  # Exit on error
 # Configuration
 WORK_DIR="$(pwd)"
 REF_GENOME="${WORK_DIR}/NC_014373.1.fasta"
-IQTREE_BIN="${HOME}/Downloads/iqtree-3.0.1-macOS/bin/iqtree3"
+# Overridable so CI can point at a Linux build on PATH.
+IQTREE_BIN="${IQTREE_BIN:-$HOME/Downloads/iqtree-3.0.1-macOS/bin/iqtree3}"
 MAX_N_FRACTION="0.15"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
@@ -38,8 +39,11 @@ if [ ! -f "$REF_GENOME" ]; then
     exit 1
 fi
 
-if [ ! -f "$IQTREE_BIN" ]; then
+# Accept either a path to the binary or a command on PATH, so the same script
+# runs against a local download and a CI-installed build.
+if [ ! -x "$IQTREE_BIN" ] && ! command -v "$IQTREE_BIN" >/dev/null 2>&1; then
     echo "ERROR: iqtree3 not found: $IQTREE_BIN"
+    echo "Set IQTREE_BIN to the binary's path, or put it on PATH."
     exit 1
 fi
 

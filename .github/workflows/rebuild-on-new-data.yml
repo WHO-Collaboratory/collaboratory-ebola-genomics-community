@@ -1,0 +1,205 @@
+name: Rebuild analysis on new Pathoplexus data
+
+# Detection already exists in data-update-check.yml, which notifies when the
+# Pathoplexus count changes. This runs the analysis off the same signal and
+# opens a pull request with the result.
+#
+# It deliberately does NOT push to main. The pipeline can finish cleanly and
+# still be wrong: a progressive alignment once placed three genomes' trailers
+# ~224 positions early and invented a clade, ADAR masking was once 30x too
+# aggressive, and a date range flattened a colour scale. All three exited 0.
+# A PR puts the numbers in a diff where someone can look at them before they
+# reach the dashboard.
+
+on:
+  schedule:
+    - cron: '30 8 * * *'    # 08:30 UTC, after data-update-check at 08:00
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Run even if the sequence count has not changed'
+        type: boolean
+        default: false
+
+# Never let two runs overlap: they share a working directory and would race
+# on the same intermediate files.
+concurrency:
+  group: rebuild-analysis
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330       # under the 360 limit, so cleanup still runs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decide whether there is new data
+        id: check
+        run: |
+          STORED=$(python3 -c "import json;print(json.load(open('.github/data-versions.json')).get('analysed_sequence_count',''))")
+          CURRENT=$(curl -s --max-time 60 \
+            "https://lapis.pathoplexus.org/ebola-bdbv/sample/aggregated?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION" \
+            | python3 -c "import json,sys;print(json.load(sys.stdin)['data'][0]['count'])")
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "Pathoplexus holds $CURRENT; last analysed ${STORED:-none}"
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "run=yes" >> "$GITHUB_OUTPUT"; echo "Forced run."
+          elif [ "$CURRENT" != "$STORED" ]; then
+            echo "run=yes" >> "$GITHUB_OUTPUT"; echo "Count changed - rebuilding."
+          else
+            echo "run=no"  >> "$GITHUB_OUTPUT"; echo "Unchanged - nothing to do."
+          fi
+
+      - name: Install tools
+        if: steps.check.outputs.run == 'yes'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mafft
+          python3 -m pip install --quiet 'artic-raccoon==1.0.2' pyyaml biopython
+          IQ=iqtree-3.0.1-Linux-intel
+          curl -sL "https://github.com/iqtree/iqtree3/releases/download/v3.0.1/${IQ}.tar.gz" \
+            | tar -xz
+          echo "$PWD/${IQ}/bin" >> "$GITHUB_PATH"
+
+      - name: Verify tool versions
+        if: steps.check.outputs.run == 'yes'
+        run: |
+          mafft --version 2>&1 | head -1
+          raccoon --version
+          iqtree3 --version | head -1
+
+      - name: Build alignment and tree
+        if: steps.check.outputs.run == 'yes'
+        env:
+          IQTREE_BIN: iqtree3
+        run: ./run_pathoplexus_pipeline.sh
+
+      - name: Cross-check the alignment against Pathoplexus
+        if: steps.check.outputs.run == 'yes'
+        run: |
+          ALN=$(ls -t aln_ref_*.fasta | grep -v masked | head -1)
+          echo "Checking $ALN"
+          python3 check_alignment.py "$ALN"
+
+      - name: Convergence analysis
+        if: steps.check.outputs.run == 'yes'
+        env:
+          IQTREE: iqtree3
+          MAX_SEQ_MISSING: '0.15'
+          MAX_SITE_MISSING: '0.10'
+          LINEAGES: '0'
+          ADAR_THREADS: '2'
+        run: |
+          ALN=$(ls -t aln_ref_*.masked.fasta | head -1)
+          ./run_asr_analysis.sh "$ALN" NC_014373.1 asr_run
+
+      - name: Sanity-check the result against what is published
+        if: steps.check.outputs.run == 'yes'
+        run: |
+          python3 - <<'PY'
+          import json, subprocess, sys
+
+          new = json.load(open("homoplasy_data.json"))["metadata"]
+          old = json.loads(subprocess.run(
+              ["git", "show", "HEAD:homoplasy_data.json"],
+              capture_output=True, text=True, check=True).stdout)["metadata"]
+
+          problems = []
+          # Genome count should not fall: Pathoplexus does not retract data, so
+          # a drop means something upstream of here went wrong.
+          if new["n_sequences"] < old["n_sequences"]:
+              problems.append(
+                  f"analysed genomes fell: {old['n_sequences']} -> {new['n_sequences']}")
+          # A large swing in the headline figure is not necessarily wrong, but
+          # it should never pass unseen.
+          o, n = old["events_internal_evidence"], new["events_internal_evidence"]
+          if o and (n > o * 2 or n < o / 2):
+              problems.append(f"independent origins moved sharply: {o} -> {n}")
+          if new["n_sequences"] < 0.5 * new["n_sequences_before_filter"]:
+              problems.append(
+                  f"QC dropped more than half the genomes: "
+                  f"{new['n_sequences']} of {new['n_sequences_before_filter']}")
+
+          print(f"genomes   {old['n_sequences']} -> {new['n_sequences']}")
+          print(f"recurrent {old['total_events']} -> {new['total_events']}")
+          print(f"origins   {o} -> {n}")
+          if problems:
+              print("\nSanity checks failed:")
+              for p in problems:
+                  print(f"  - {p}")
+              sys.exit(1)
+          print("\nSanity checks passed.")
+          PY
+
+      - name: Record the count that was analysed
+        if: steps.check.outputs.run == 'yes'
+        run: |
+          python3 - <<PY
+          import json
+          p = ".github/data-versions.json"
+          s = json.load(open(p))
+          s["analysed_sequence_count"] = "${{ steps.check.outputs.current }}"
+          json.dump(s, open(p, "w"), indent=2)
+          open(p, "a").write("\n")
+          PY
+
+      - name: Open a pull request
+        if: steps.check.outputs.run == 'yes'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: auto/rebuild-analysis
+          delete-branch: true
+          commit-message: |
+            Rebuild analysis on ${{ steps.check.outputs.current }} Pathoplexus genomes
+
+            Produced by the rebuild-on-new-data workflow. Review the figures in
+            homoplasy_data.json before merging: a clean run is not the same as
+            a correct one.
+          title: "Rebuild analysis — ${{ steps.check.outputs.current }} genomes from Pathoplexus"
+          body: |
+            Pathoplexus now holds **${{ steps.check.outputs.current }}** genomes for
+            `Bdbv-2026`, so the analysis was rebuilt.
+
+            Checks that passed before this PR was opened:
+
+            - download verified against the aggregated count
+            - alignment cross-checked against the Pathoplexus alignment
+            - genome count did not fall, QC kept more than half, independent
+              origins did not move by more than a factor of two
+
+            **Worth a look before merging**, since the figures in
+            `homoplasy_data.json` go straight to the dashboard on merge:
+
+            - `n_sequences` and `n_sequences_before_filter`
+            - `total_events` and `events_internal_evidence`
+            - the ADAR block: genomes affected and positions masked
+            - `local_tree.nwk` tip count
+
+            A pipeline that exits cleanly can still be wrong, which is why this
+            is a pull request rather than a push.
+          add-paths: |
+            homoplasy_data.json
+            local_tree.nwk
+            asr_run_homoplasy_report.txt
+            asr_run_adar_report.txt
+            .github/data-versions.json
+
+      - name: Upload run artefacts
+        if: always() && steps.check.outputs.run == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-outputs
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            aln_ref_*.masked.fasta
+            aln_ref_*.masked.fasta.treefile
+            asr_run_homoplasy.json
+            asr_run_adar_report.*
+            *.log
