@@ -390,11 +390,20 @@ echo ""
 
 # Step 8: Run IQTree3
 echo "[8/8] Building phylogenetic tree (IQTree3)..."
+# -seed and a fixed thread count, not -nt AUTO: without them the same
+# alignment gives a different tree on each run. Within this outbreak most
+# internal branches carry one or two substitutions, so the search has little
+# to separate competing topologies and lands somewhere different each time -
+# two runs on identical input differed at 71 of ~280 internal splits, which
+# moved the downstream count of independent origins from 16 to 20. The thread
+# count matters as well as the seed, because IQ-TREE's parallel reductions are
+# not order-independent.
 "$IQTREE_BIN" \
     -s "$MASKED_FASTA" \
     -m TEST \
     --polytomy \
-    -nt AUTO
+    -seed "${IQTREE_SEED:-20260101}" \
+    -T "${IQTREE_THREADS:-4}"
 echo "✓ IQTree3 complete"
 echo "   Tree file: ${MASKED_FASTA}.treefile"
 echo ""

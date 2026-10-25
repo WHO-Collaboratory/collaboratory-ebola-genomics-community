@@ -99,7 +99,10 @@ jobs:
           MAX_SEQ_MISSING: '0.15'
           MAX_SITE_MISSING: '0.10'
           LINEAGES: '0'
-          ADAR_THREADS: '2'
+          # No thread override: the ASR tree is seeded and thread-pinned, and
+          # IQ-TREE's parallel reductions are not order-independent, so a
+          # different thread count here would give CI a different tree from a
+          # hand-run on the same data.
         run: |
           ALN=$(ls -t aln_ref_*.masked.fasta | head -1)
           ./run_asr_analysis.sh "$ALN" NC_014373.1 asr_run

@@ -19,7 +19,13 @@ MODEL="${MODEL:-GTR+F+I+G4}"
 
 # Quality thresholds. Sites and sequences above these are dropped; raising
 # them weakens every downstream claim, so change them deliberately.
-MAX_SEQ_MISSING="${MAX_SEQ_MISSING:-0.10}"
+# 0.15, not 0.10: this is the threshold the published analysis and the CI
+# workflow both use, and a default that disagrees with every real invocation
+# means a hand-run silently produces a stricter, different analysis (0.10
+# drops 138 sequences where 0.15 drops 35).
+MAX_SEQ_MISSING="${MAX_SEQ_MISSING:-0.15}"
+IQTREE_SEED="${IQTREE_SEED:-20260101}"
+IQTREE_THREADS="${IQTREE_THREADS:-4}"
 MAX_SITE_MISSING="${MAX_SITE_MISSING:-0.10}"
 MIN_STATE_PROB="${MIN_STATE_PROB:-0.9}"
 
@@ -56,12 +62,16 @@ python3 asr_prep.py "$ALIGN" "$OUTGROUP" \
 echo
 echo "== 2/6 IQ-TREE ancestral state reconstruction =="
 # -o roots the written tree on the outgroup; --ancestral is the -asr switch.
+# Seeded and single thread count for the same reason as the pipeline's tree
+# search: this pass infers a topology, and an unseeded search makes the
+# published figures irreproducible from unchanged input.
 "$IQTREE" -s "${PREFIX}_input.fasta" \
     -m "$MODEL" \
     -o "$OUTGROUP" \
     --ancestral \
     --polytomy \
-    -nt AUTO \
+    -seed "$IQTREE_SEED" \
+    -T "$IQTREE_THREADS" \
     --prefix "$PREFIX" \
     -redo
 
@@ -104,7 +114,8 @@ else
         -te "${PREFIX}.treefile" \
         -o "$OUTGROUP" \
         --ancestral \
-        -T "${ADAR_THREADS:-4}" \
+        -seed "$IQTREE_SEED" \
+        -T "${ADAR_THREADS:-$IQTREE_THREADS}" \
         --prefix "${PREFIX}_adar" \
         -redo
 

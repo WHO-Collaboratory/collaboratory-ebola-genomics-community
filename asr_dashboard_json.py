@@ -167,6 +167,11 @@ def main():
             "masked_sites": meta.get("masked_sites") or [],
             "adar": adar,
             "excluded": exclusions(meta),
+            # Recorded so a published figure can be reproduced: the tree
+            # search is seeded and thread-pinned, and both inputs change the
+            # topology, which the event counts are derived from.
+            "iqtree_seed": os.environ.get("IQTREE_SEED", "20260101"),
+            "iqtree_threads": os.environ.get("IQTREE_THREADS", "4"),
             "max_seq_missing": meta.get("max_seq_missing"),
             "max_site_missing": meta.get("max_site_missing"),
             "outgroup": meta["outgroup"],
