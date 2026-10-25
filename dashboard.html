@@ -1254,19 +1254,6 @@
         }
       });
 
-      // Show a legend for the category being coloured by. Without it the
-      // colours are unreadable: 882 of 907 genomes are from one country, so
-      // the handful from elsewhere are a few pixels each and there is no way
-      // to tell which colour means what. A legend names them whether or not
-      // their tips are easy to find. Divergence-based modes have no
-      // categories to list.
-      const legendEl = document.getElementById('legend-annotation');
-      if (legendEl) {
-        const want = (mode === 'new') ? '' : colourBy;
-        const ok = [...legendEl.options].some(o => o.value === want);
-        legendEl.value = ok ? want : '';
-        legendEl.dispatchEvent(new Event('change', { bubbles: true }));
-      }
     }
     // If mode is 'none', don't change coloring - just leave tree as-is
 
