@@ -1364,12 +1364,42 @@ let filteredEvents = [];
         (kept && total ? `${kept} of ${total} genomes analysed` : 'Excluded genomes')
         + ` \u00b7 ${ex.total} excluded`;
     }
-    const masked = homoplasyMetadata.masked_sites || [];
+    // Collapse consecutive positions into ranges: the terminal mask alone is
+    // 40 positions, which listed individually buries the one site that was
+    // picked deliberately.
+    const masked = (homoplasyMetadata.masked_sites || []).slice().sort((a, b) => a - b);
+    const ranges = [];
+    for (const pos of masked) {
+      const last = ranges[ranges.length - 1];
+      if (last && pos === last[1] + 1) last[1] = pos;
+      else ranges.push([pos, pos]);
+    }
     const maskedNote = masked.length
       ? `<div style="margin-bottom:6px;color:#777;">Masked site${masked.length === 1 ? '' : 's'}: `
-        + `<span style="font-family:ui-monospace,Menlo,monospace;">${masked.join(', ')}</span></div>`
+        + `<span style="font-family:ui-monospace,Menlo,monospace;">`
+        + ranges.map(([a, b]) => (a === b ? `${a}` : `${a}\u2013${b}`)).join(', ')
+        + `</span></div>`
       : '';
-    host.innerHTML = maskedNote + ex.groups.map(g => {
+    // Genomes carrying masked ADAR edits. These are analysed, not excluded -
+    // only the edited positions are set to N - so they are listed separately
+    // from the exclusion groups rather than folded into the excluded count.
+    const adar = homoplasyMetadata.adar || null;
+    const perGenome = adar && adar.masked_per_genome ? adar.masked_per_genome : null;
+    let adarBlock = '';
+    if (perGenome) {
+      const entries = Object.entries(perGenome);
+      const items = entries.map(([acc, n]) =>
+        `<span title="${n} position${n === 1 ? '' : 's'} masked">`
+        + `${acc.replace(/\.\d+$/, '')}<span style="color:#aaa;">&nbsp;${n}</span></span>`
+      ).join(', ');
+      adarBlock = `<div style="margin-bottom:8px;">
+          <div style="font-weight:600;color:#6b5320;">ADAR edits masked &middot; ${entries.length} genome${entries.length === 1 ? '' : 's'}, ${adar.bases_masked} position${adar.bases_masked === 1 ? '' : 's'}</div>
+          <div style="color:#777;font-size:0.95em;margin-bottom:3px;">Analysed, not excluded: runs of ${adar.min_count}+ T&rarr;C edits within ${adar.max_gap}&nbsp;nt keep their first edit and have the rest set to N. Number after each accession is how many positions were masked.</div>
+          <div style="color:#777;word-break:break-word;font-family:ui-monospace,Menlo,monospace;font-size:0.95em;">${items}</div>
+        </div>`;
+    }
+
+    host.innerHTML = maskedNote + adarBlock + ex.groups.map(g => {
       const items = (g.accessions || []).map(a => {
         const why = g.detail && g.detail[a];
         const short = a.replace(/\.\d+$/, '');

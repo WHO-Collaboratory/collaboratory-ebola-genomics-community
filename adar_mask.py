@@ -234,6 +234,15 @@ def main():
         "genomes_affected": affected,
         "bases_masked": masked_bases,
         "branches_with_runs": len(runs_found),
+        # Per-genome detail, so the dashboard can name which isolates carry
+        # masked positions. These genomes are analysed, not excluded: only the
+        # edited positions are set to N.
+        "masked_per_genome": {
+            name: len(sites)
+            for name, sites in sorted(to_mask.items(),
+                                      key=lambda kv: (-len(kv[1]), kv[0]))
+            if sites
+        },
     }
     summary_path = os.path.splitext(args.report)[0] + ".json"
     with open(summary_path, "w") as fh:
