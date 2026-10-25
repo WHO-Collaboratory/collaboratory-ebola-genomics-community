@@ -1,4 +1,4 @@
-name: Check for data updates
+name: Check for data and literature updates
 
 on:
   schedule:
@@ -79,6 +79,28 @@ jobs:
               print(f"WARNING: Nextstrain fetch failed — {e}", file=sys.stderr)
               new_nextstrain = state.get("nextstrain_updated", "")
 
+          # ── Fetch Virological (Ebolavirus category, incl. subcategories) ───
+          # The Bundibugyo posts sit in a subcategory of Ebolavirus (id 9), so
+          # include_subcategories is required; the category-slug-only URL
+          # returns a payload with no topic_list at all.
+          VIROLOGICAL = ("https://virological.org/c/ebolavirus/9/l/latest.json"
+                         "?include_subcategories=true")
+          seen_topics = state.get("virological_seen_topics")
+          try:
+              # Discourse rejects the default urllib user agent with a 403
+              listing = fetch_json(
+                  VIROLOGICAL, timeout=45,
+                  headers={"User-Agent": f"{REPO} data-update-check",
+                           "Accept": "application/json"})
+              topics = [
+                  t for t in listing["topic_list"]["topics"]
+                  # "About the <x> category" is pinned boilerplate, not a post
+                  if not t["title"].lower().startswith("about the")
+              ]
+          except Exception as e:
+              print(f"WARNING: Virological fetch failed — {e}", file=sys.stderr)
+              topics = []
+
           print(f"Pathoplexus sequences: {new_count} (stored: {state.get('pathoplexus_sequence_count', 'none')})")
           print(f"Nextstrain updated: {new_nextstrain} (stored: {state.get('nextstrain_updated', 'none')})")
 
@@ -97,6 +119,29 @@ jobs:
                       f"> Previous: `{state['nextstrain_updated']}`  \n"
                       f"> New: `{new_nextstrain}`"
                   )
+
+          # Virological has its own first-run state: the key is absent until the
+          # first successful fetch, and a failed fetch must not seed it empty.
+          new_topics = []
+          if topics:
+              if seen_topics is None:
+                  print(f"First Virological check — recording {len(topics)} "
+                        f"existing topics without notifying.")
+              else:
+                  known = set(seen_topics)
+                  new_topics = [t for t in topics if t["id"] not in known]
+                  print(f"Virological: {len(new_topics)} new topic(s) of "
+                        f"{len(topics)} listed")
+
+          for t in sorted(new_topics, key=lambda t: t["created_at"]):
+              url = f"https://virological.org/t/{t['slug']}/{t['id']}"
+              updates.append(
+                  f"📄 **Virological** — new post in the Ebolavirus category\n"
+                  f"> [{t['title']}]({url})  \n"
+                  f"> Posted {t['created_at'][:10]}\n\n"
+                  f"Methods or estimates in this post may need to reach "
+                  f"[`landscape.md`](https://github.com/{REPO}/blob/main/landscape.md)."
+              )
 
           if updates:
               # ── Find or create the notification issue ──────────────────────
@@ -118,7 +163,8 @@ jobs:
                               "This issue tracks updates to the data shown in the "
                               f"[BDBV Genomics Community Dashboard]({DASHBOARD}).\n\n"
                               "**To receive email notifications** when Pathoplexus sequence data "
-                              "or the Nextstrain phylogeny are updated, subscribe to this issue: "
+                              "or the Nextstrain phylogeny are updated, or a new Ebolavirus post "
+                              "appears on Virological, subscribe to this issue: "
                               "click **Subscribe** in the right-hand panel.\n\n"
                               "_This issue is maintained automatically. Do not close it._"
                           ),
@@ -147,6 +193,12 @@ jobs:
           # ── Persist updated state ──────────────────────────────────────────
           state["pathoplexus_sequence_count"] = new_count
           state["nextstrain_updated"]         = new_nextstrain
+          if topics:
+              # Keep the ids seen, not just those currently listed: the listing
+              # returns only the newest ~25 topics, so a post would otherwise be
+              # reported again once it falls off the end.
+              merged = set(seen_topics or []) | {t["id"] for t in topics}
+              state["virological_seen_topics"] = sorted(merged)[-300:]
           # Remove old dataVersion key if present
           state.pop("pathoplexus_data_version", None)
 
