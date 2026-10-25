@@ -38,6 +38,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: the run re-bases onto the current main before opening
+          # the PR, and create-pull-request walks main...branch to count
+          # commits, which needs a common ancestor.
+          fetch-depth: 0
 
       - name: Decide whether there is new data
         id: check
@@ -155,10 +160,23 @@ jobs:
                    asr_run_homoplasy_report.txt asr_run_adar_report.txt; do
             cp "$f" "$OUT/"
           done
-          git fetch origin main
+          # The checkout pins origin/main to the dispatched commit, and
+          # create-pull-request resets to that ref itself, so the fetch has to
+          # move it rather than just give us FETCH_HEAD.
+          git fetch --force origin main:refs/remotes/origin/main
           git reset --hard origin/main      # restores .github/data-versions.json
           cp "$OUT"/* .
           git --no-pager diff --stat
+
+          # The push is refused outright if the branch would alter any workflow
+          # file, and that only surfaces after the whole analysis has run. Fail
+          # here instead, where the message says what to do about it.
+          if ! git diff --quiet origin/main -- .github/workflows; then
+            echo "::error::Branch would modify .github/workflows; the push" \
+                 "would be rejected. Re-dispatch from the current main."
+            git --no-pager diff --name-only origin/main -- .github/workflows
+            exit 1
+          fi
 
       - name: Record the count that was analysed
         if: steps.check.outputs.run == 'yes'
