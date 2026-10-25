@@ -60,7 +60,12 @@ jobs:
           try:
               lapis = fetch_json(
                   "https://lapis.pathoplexus.org/ebola-bdbv/sample/aggregated"
-                  "?outbreak=Bdbv-2026&dataFormat=JSON",
+                  # Without versionStatus this counts every version ever
+                  # submitted: 1105 against 1055 current genomes, the
+                  # difference being 39 superseded revisions and 11 revoked
+                  # records. A revision to an existing genome would then read
+                  # as new data.
+                  "?outbreak=Bdbv-2026&versionStatus=LATEST_VERSION&dataFormat=JSON",
                   timeout=45
               )
               new_count = str(lapis["data"][0]["count"])
