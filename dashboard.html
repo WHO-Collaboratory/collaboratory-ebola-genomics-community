@@ -372,7 +372,7 @@
     <div class="card-header">
       <h2>Genomes over time</h2>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:16px;">
+    <div id="timeline-grid" style="display:grid;grid-template-columns:minmax(0,1fr);gap:20px;padding:16px;">
 
       <!-- Left: Genome counts over time -->
       <div style="border:1px solid #ddd;border-radius:4px;padding:12px;background:#fafafa;display:flex;flex-direction:column;">
@@ -382,8 +382,10 @@
         </div>
       </div>
 
-      <!-- Right: Selected mutation frequency over time -->
-      <div style="border:1px solid #ddd;border-radius:4px;padding:12px;background:#fafafa;display:flex;flex-direction:column;">
+      <!-- Right: selected mutation frequency over time. Hidden with the
+           convergent mutation panel, since a mutation can only be selected
+           from there; toggleHomoplasyPanel() reveals both together. -->
+      <div id="mutation-freq-card" style="display:none;border:1px solid #ddd;border-radius:4px;padding:12px;background:#fafafa;flex-direction:column;">
         <div style="font-size:0.9rem;font-weight:600;color:#222;margin-bottom:12px;">
           <span id="mutation-freq-title">Select mutation to view frequency</span>
         </div>
@@ -1191,12 +1193,34 @@
     const showing = panel.style.display !== 'none';
     panel.style.display = showing ? 'none' : 'flex';
     grid.style.gridTemplateColumns = showing ? '1.35fr 2fr' : '1.35fr 2fr 1fr';
+
+    // The mutation frequency chart only has content once a mutation has been
+    // picked from the convergence panel, so it follows that panel and the
+    // timeline below collapses to a single column without it.
+    const freq = document.getElementById('mutation-freq-card');
+    const tgrid = document.getElementById('timeline-grid');
+    if (freq)  freq.style.display = showing ? 'none' : 'flex';
+    // minmax(0,...), not 1fr: a grid track's default minimum is its content
+    // width, and the genomes canvas keeps the width it was given as a single
+    // column, which would leave the revealed chart a sliver.
+    if (tgrid) tgrid.style.gridTemplateColumns =
+      showing ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(0,1fr)';
     if (btn) {
       btn.style.background = showing ? '#fff' : '#e05c3a';
       btn.style.color      = showing ? '#555' : '#fff';
     }
     // PearTree sizes its canvas to the container, which has just changed.
     window.dispatchEvent(new Event('resize'));
+
+    // Chart.js writes an explicit pixel width onto the canvas and does not
+    // always grow it back when its column widens again, so ask each chart
+    // directly, after layout has settled.
+    requestAnimationFrame(() => {
+      document.querySelectorAll('#timeline-grid canvas').forEach(c => {
+        const chart = window.Chart && Chart.getChart(c);
+        if (chart) { c.removeAttribute('style'); chart.resize(); }
+      });
+    });
   };
 
   function searchTree(query) {
