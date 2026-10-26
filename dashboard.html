@@ -377,7 +377,7 @@
       <!-- Left: Genome counts over time -->
       <div style="border:1px solid #ddd;border-radius:4px;padding:12px;background:#fafafa;display:flex;flex-direction:column;">
         <div style="font-size:0.9rem;font-weight:600;color:#222;margin-bottom:12px;">Sequencing volume</div>
-        <div style="height:180px;flex:1;position:relative;">
+        <div style="height:180px;position:relative;flex:0 0 180px;">
           <canvas id="genomesChart" style="width:100%;height:100%;"></canvas>
         </div>
       </div>
@@ -394,7 +394,7 @@
                          border:1px solid #bbb;border-radius:3px;background:#fff;color:#555;cursor:pointer;">
             ← All locations</button>
         </div>
-        <div style="height:180px;flex:1;position:relative;">
+        <div style="height:180px;position:relative;flex:0 0 180px;">
           <canvas id="locationChart" style="width:100%;height:100%;"></canvas>
         </div>
         <div style="font-size:0.75rem;color:#666;margin-top:8px;text-align:center;" id="location-note"></div>
@@ -407,7 +407,7 @@
         <div style="font-size:0.9rem;font-weight:600;color:#222;margin-bottom:12px;">
           <span id="mutation-freq-title">Select mutation to view frequency</span>
         </div>
-        <div style="height:180px;flex:1;position:relative;">
+        <div style="height:180px;position:relative;flex:0 0 180px;">
           <canvas id="mutationFreqChart" style="width:100%;height:100%;"></canvas>
         </div>
         <div style="font-size:0.75rem;color:#666;margin-top:8px;text-align:center;" id="mutation-freq-note"></div>
@@ -655,6 +655,10 @@
       },
       options: {
         responsive: true,
+        // Fill the fixed-height card, like the other two charts. Left on, the
+        // chart derives its height from its width, which in a narrow column
+        // fights the card height.
+        maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
         plugins: {
           legend: { display: true, position: "top", labels: { font: { size: 11 }, boxWidth: 14 } },
@@ -1414,13 +1418,21 @@
     // PearTree sizes its canvas to the container, which has just changed.
     window.dispatchEvent(new Event('resize'));
 
-    // Chart.js writes an explicit pixel width onto the canvas and does not
-    // always grow it back when its column widens again, so ask each chart
-    // directly, after layout has settled.
+    // Chart.js writes explicit pixel dimensions onto the canvas and does not
+    // always grow them back when its column widens again, so ask each chart
+    // directly, after layout has settled. Restore the percentage sizing
+    // rather than clearing the style attribute: without width/height 100% the
+    // canvas no longer takes its size from the card, and a responsive chart
+    // measuring a container that is itself sized by the canvas grows on every
+    // frame - which made the charts run off the page and left the location
+    // chart unable to lay out at all.
     requestAnimationFrame(() => {
       document.querySelectorAll('#timeline-grid canvas').forEach(c => {
         const chart = window.Chart && Chart.getChart(c);
-        if (chart) { c.removeAttribute('style'); chart.resize(); }
+        if (!chart) return;
+        c.style.width = '100%';
+        c.style.height = '100%';
+        chart.resize();
       });
     });
   };
