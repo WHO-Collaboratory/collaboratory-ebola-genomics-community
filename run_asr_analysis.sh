@@ -35,7 +35,7 @@ MASK_SITES="${MASK_SITES:-7461}"
 # Genome termini carry sequencing artefacts and are where ragged ends get
 # misplaced. Masked by the Nextstrain BDBV build and by published phylodynamic
 # analyses of this outbreak.
-MASK_START="${MASK_START:-0}"
+MASK_START="${MASK_START:-40}"
 MASK_END="${MASK_END:-40}"
 # Rate outliers and QC failures, per the Nextstrain BDBV exclusion list. ADAR-
 # edited genomes are deliberately NOT excluded - their edits are masked instead.

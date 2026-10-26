@@ -107,8 +107,14 @@ def main():
              "variable region in GP that conflicts with outgroup rooting'. "
              "Pass an empty string to mask nothing.")
     ap.add_argument(
-        "--mask-start", type=int, default=0,
-        help="Mask this many positions at the 5' end of the genome.")
+        "--mask-start", type=int, default=40,
+        help="Mask this many positions at the 5' end of the genome (default "
+             "40). Measured across the whole alignment, a base in the first "
+             "40 columns disagrees with the consensus 363x more often than a "
+             "base in the interior - worse than the 3' end at 146x - and the "
+             "elevation is confined to columns 11-40, with the rate back to "
+             "background by column 41. Only ~7 of 1007 genomes carry sequence "
+             "there at all, so masking costs almost no real signal.")
     ap.add_argument(
         "--mask-end", type=int, default=40,
         help="Mask this many positions at the 3' end (default 40). Terminal "
