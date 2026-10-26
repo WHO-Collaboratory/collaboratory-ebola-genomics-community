@@ -9,8 +9,9 @@ jobs:
   check-updates:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # to commit updated state file
-      issues: write     # to create/comment on notification issue
+      contents: write        # to commit updated state file
+      issues: write          # to create/comment on notification issue
+      pull-requests: write   # to open the revoked-genome removal PR
 
     steps:
       - uses: actions/checkout@v4
@@ -221,3 +222,55 @@ jobs:
               subprocess.run(["git", "push"], check=True)
               print("State file committed.")
           EOF
+
+      - name: Remove revoked genomes from the published artefacts
+        # A submitter can revoke a submission at any time. The Pathoplexus
+        # panel is a live query and drops it at once, but the tree and the
+        # convergence figures are a snapshot and keep showing it until the
+        # next rebuild. This runs daily so that gap is a day at most.
+        run: |
+          python3 prune_revoked.py
+          if git diff --quiet -- local_tree.nwk homoplasy_data.json; then
+            echo "changed=no" >> "$GITHUB_OUTPUT"
+            echo "No revoked genomes in the published artefacts."
+          else
+            echo "changed=yes" >> "$GITHUB_OUTPUT"
+            git --no-pager diff --stat -- local_tree.nwk homoplasy_data.json
+          fi
+        id: prune
+
+      - name: Open a pull request for the removal
+        if: steps.prune.outputs.changed == 'yes'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: auto/remove-revoked
+          delete-branch: true
+          commit-message: |
+            Remove revoked genome(s) from the published artefacts
+
+            Produced by the data-update-check workflow from the Pathoplexus
+            revoked list.
+          title: "Remove revoked genome(s) from the published artefacts"
+          body: |
+            One or more genomes on the published tree have been **revoked by
+            their submitters** in Pathoplexus. A revocation withdraws the
+            submission: the revoked version keeps its metadata and is marked
+            REVOKED, and a new latest version is created with every field
+            stripped, the outbreak tag included.
+
+            The dashboard's Pathoplexus panel is a live query, so it already
+            drops them. The tree and the convergence figures are a snapshot
+            from the last rebuild and do not, which is what this removes.
+
+            `prune_revoked.py` takes out the tip, the carrier lists, the
+            per-genome ADAR counts and the counts that follow from them, and
+            records what was removed in `metadata.revoked_removed`. Aggregate
+            figures are left for the next rebuild to recompute, so
+            `n_sequences` will read one higher than the tree holds until then.
+
+            **These are Restricted Use data that a submitter has asked to
+            withdraw**, so this is worth merging promptly rather than leaving
+            for the next scheduled rebuild.
+          add-paths: |
+            local_tree.nwk
+            homoplasy_data.json
