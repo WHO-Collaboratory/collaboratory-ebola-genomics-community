@@ -194,7 +194,15 @@ jobs:
           PY
 
       - name: Open a pull request
+        id: cpr
         if: steps.check.outputs.run == 'yes'
+        # The action pushes the branch and then opens the PR. The second part
+        # is refused when "Allow GitHub Actions to create and approve pull
+        # requests" is off for the repository or organisation, which is a
+        # setting rather than a broken run - the analysis is safely on the
+        # branch either way. The step after this one decides whether that
+        # should fail the job.
+        continue-on-error: true
         uses: peter-evans/create-pull-request@v6
         with:
           branch: auto/rebuild-analysis
@@ -233,6 +241,22 @@ jobs:
             asr_run_homoplasy_report.txt
             asr_run_adar_report.txt
             .github/data-versions.json
+
+      - name: Confirm the branch landed
+        if: steps.check.outputs.run == 'yes'
+        run: |
+          git fetch origin auto/rebuild-analysis 2>/dev/null || true
+          if git rev-parse --verify -q origin/auto/rebuild-analysis >/dev/null; then
+            echo "Branch auto/rebuild-analysis pushed; the rebuild is saved."
+            if [ "${{ steps.cpr.outcome }}" != "success" ]; then
+              URL="https://github.com/${{ github.repository }}/compare/main...auto/rebuild-analysis?expand=1"
+              echo "::warning::No pull request was opened - Actions is not permitted to create them. Open one at $URL"
+              echo "Open the pull request here: $URL" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            echo "::error::The branch was not pushed, so the rebuild was not saved."
+            exit 1
+          fi
 
       - name: Upload run artefacts
         if: always() && steps.check.outputs.run == 'yes'
