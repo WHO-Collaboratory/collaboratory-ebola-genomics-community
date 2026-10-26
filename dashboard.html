@@ -161,6 +161,15 @@
       border-top: none !important;
       vertical-align: middle !important;
     }
+    /* One unusually long submitter sample ID was stretching this column and
+       squeezing the rest of the table. Cap it and show the full value on
+       hover; the accession beside it is the stable identifier anyway. */
+    #seq-table-container td.col-sample {
+      max-width: 110px !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+    }
     #seq-table-container tr:last-child td { border-bottom: none !important; }
     #seq-table-container tr:hover td { background: #f8fafc !important; }
     #seq-table-container a { color: #005a8e !important; }
@@ -501,7 +510,7 @@
       return `
       <tr class="${isNew ? 'row-new' : ''}" style="cursor:pointer;" onmouseover="this.style.background='#f0f0f0';" onmouseout="this.style.background='';" onclick="selectSequenceRow(this, '${s.id}')">
         <td><a href="https://pathoplexus.org/seq/${s.id}" target="_blank" style="color:inherit;text-decoration:none;" onclick="event.stopPropagation();">${s.id}</a>${isNew ? ' <span class="tag tag-new">New</span>' : ''}</td>
-        <td>${s.sample}</td>
+        <td class="col-sample" title="${s.sample}">${s.sample}</td>
         <td>${s.date}</td>
         <td>${countryTag[s.country] || s.country}</td>
         <td>${s.location}</td>
