@@ -135,7 +135,11 @@ def main():
 
     tree_text = open(args.tree).read()
     data = json.load(open(args.data))
-    raw = json.dumps(data)
+    # Exclude our own audit record, which names every accession already
+    # removed - otherwise the check reports them as present for ever.
+    scan = json.loads(json.dumps(data))
+    scan.get("metadata", {}).pop("revoked_removed", None)
+    raw = json.dumps(scan)
 
     in_tree = sorted(a for a in revoked if a in tree_text)
     in_data = sorted(a for a in revoked if a in raw)
