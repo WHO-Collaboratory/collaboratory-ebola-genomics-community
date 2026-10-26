@@ -182,9 +182,19 @@
       font-weight: 600;
     }
     .tag-restricted { background: #fff3cd; color: #856404; }
-    .tag-drc { background: #d4edda; color: #155724; }
+    /* Neutral, not green: the same green marks "Open" data use terms in this
+       table, and 96% of these genomes are DRC and Restricted, so a green
+       country pill read as a licence status on almost every row. The
+       exceptions keep a colour because those are the rows worth spotting. */
+    .tag-drc { background: #eceff1; color: #37474f; }
+    .tag-open { background: #d4edda; color: #155724; }
     .tag-uganda { background: #cce5ff; color: #004085; }
     .tag-germany { background: #e2d9f3; color: #4a235a; }
+    /* The other countries exporting cases. Tints only, kept clear of the
+       green that means Open and the amber that means Restricted. */
+    .tag-kenya { background: #d7eef0; color: #0f4c52; }
+    .tag-nigeria { background: #fadce4; color: #80203c; }
+    .tag-france { background: #efe6da; color: #5d4632; }
     .tag-new { background: #fde8e4; color: #c0392b; }
     tr.row-new td { background: #fff8f7 !important; }
 
@@ -478,6 +488,9 @@
     "DRC":     '<span class="tag tag-drc">DRC</span>',
     "Uganda":  '<span class="tag tag-uganda">Uganda</span>',
     "Germany": '<span class="tag tag-germany">Germany / Charité</span>',
+    "Kenya":   '<span class="tag tag-kenya">Kenya</span>',
+    "Nigeria": '<span class="tag tag-nigeria">Nigeria</span>',
+    "France":  '<span class="tag tag-france">France</span>',
   };
 
   function renderTable(sequences, source) {
@@ -491,8 +504,8 @@
         const nRestricted = sequences.filter(s => s.terms === 'RESTRICTED').length;
         const hasOpen = nOpen > 0;
         const hasRestricted = nRestricted > 0;
-        if (hasOpen && hasRestricted) return `<span class="tag tag-restricted">${nRestricted} Restricted</span> · <span class="tag tag-drc" style="background:#d4edda;color:#155724;">${nOpen} Open</span>`;
-        if (hasOpen) return `all <span class="tag tag-drc" style="background:#d4edda;color:#155724;">Open</span> use terms`;
+        if (hasOpen && hasRestricted) return `<span class="tag tag-restricted">${nRestricted} Restricted</span> · <span class="tag tag-open">${nOpen} Open</span>`;
+        if (hasOpen) return `all <span class="tag tag-open">Open</span> use terms`;
         return 'all under <span class="tag tag-restricted">Restricted Use</span>';
       })()}</div>
       <div style="font-size:0.75rem;color:#999;margin-bottom:8px;">${source}</div>
@@ -501,7 +514,7 @@
     const termsTag = t => t === "RESTRICTED"
       ? '<span class="tag tag-restricted">Restricted</span>'
       : t === "OPEN"
-      ? '<span class="tag tag-drc" style="background:#d4edda;color:#155724;">Open</span>'
+      ? '<span class="tag tag-open">Open</span>'
       : t;
 
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
