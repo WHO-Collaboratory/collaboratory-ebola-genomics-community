@@ -384,7 +384,13 @@
 
       <!-- Middle: where those genomes came from, same weekly buckets -->
       <div style="border:1px solid #ddd;border-radius:4px;padding:12px;background:#fafafa;display:flex;flex-direction:column;">
-        <div style="font-size:0.9rem;font-weight:600;color:#222;margin-bottom:12px;">Collection location by week</div>
+        <div style="font-size:0.9rem;font-weight:600;color:#222;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <span id="location-title">Collection location by week</span>
+          <button id="location-back" onclick="locationDrillUp()"
+                  style="display:none;font-size:0.72rem;font-weight:600;padding:2px 8px;
+                         border:1px solid #bbb;border-radius:3px;background:#fff;color:#555;cursor:pointer;">
+            ← All locations</button>
+        </div>
         <div style="height:180px;flex:1;position:relative;">
           <canvas id="locationChart" style="width:100%;height:100%;"></canvas>
         </div>
@@ -678,35 +684,78 @@
     return d.toISOString().slice(0, 10);
   }
 
-  // Where genomes were collected, over time. Stacked, so bar height is the
-  // week's sequencing volume and the composition shows the provinces behind
-  // it. Only the commonest provinces get their own colour; a long tail of
-  // one-genome provinces would make the legend unreadable.
+  // Collection location over time, as a two-level hierarchy. The top level
+  // is province for DRC and country for everything else; clicking a region
+  // with admin2 data drills into its health zones. One level alone is not
+  // much use here: at the top, Ituri is 96% of the dataset and the stack is
+  // effectively one colour, while health zones shown flat would put Bunia
+  // beside Kampala as though they were comparable units.
+  let locationDrill = null;
+
+  // geoLocAdmin2 is free text. Title-casing merges BUNIA with Bunia; these
+  // are the spelling variants it cannot merge. "Kom" is deliberately absent:
+  // it is probably Komanda, but 8 genomes should not be reassigned on a guess.
+  const ADMIN2_ALIASES = {
+    "Niania": "Nia Nia", "Nia": "Nia Nia",
+    "Mungwalu": "Mongbwalu", "Mongwalu": "Mongbwalu",
+    "Nyakunde": "Nyankunde",
+    "Not Provided": "Not stated", "Unknown": "Not stated",
+    // Two Ugandan records give a cross-border origin rather than a district.
+    // Kept as recorded - it is information - but not re-cased into "Drc".
+    "Drc": "DRC",
+  };
+
+  const DRC_NAME = "Democratic Republic of the Congo";
+
+  // Top level: province for DRC records, country otherwise. geoLocAdmin1 is
+  // only a province for DRC - Uganda repeats the country there, the Kenyan
+  // genomes carry the sequencing laboratory (NGMSL) and the Nigerian one a
+  // city, so plotting it raw listed a laboratory among the provinces.
+  function regionOf(s) {
+    if (s.country === DRC_NAME) {
+      return (s.province && s.province !== "\u2014") ? s.province
+                                                 : "DRC, province not given";
+    }
+    return (s.country && s.country !== "\u2014") ? s.country : "Unknown";
+  }
+
+  function zoneOf(s) {
+    const raw = (s.admin2 || "").trim();
+    if (!raw) return "Not stated";
+    const t = toTitleCase(raw);
+    return ADMIN2_ALIASES[t] || t;
+  }
+
+  function isoWeekStart(iso) {
+    const d = new Date(iso + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  }
+
+  window.locationDrillUp = function () { locationDrill = null; renderLocationChart(); };
+
   function renderLocationChart() {
     const canvas = document.getElementById("locationChart");
     if (!canvas) return;
-    const dated = allSequences.filter(s => s.dateNorm && s.dateNorm !== "\u2014");
-    const note = document.getElementById("location-note");
-    if (!dated.length) {
+    const note  = document.getElementById("location-note");
+    const title = document.getElementById("location-title");
+    const back  = document.getElementById("location-back");
+
+    let rows = allSequences.filter(s => s.dateNorm && s.dateNorm !== "\u2014");
+    if (locationDrill) rows = rows.filter(s => regionOf(s) === locationDrill);
+    if (!rows.length) {
       if (note) note.textContent = "No collection dates available";
       return;
     }
 
-    // geoLocAdmin1 is only a province for DRC records. Uganda repeats the
-    // country there, the three Kenyan genomes carry the sequencing lab
-    // (NGMSL) and the Nigerian one a city, so plotting the raw field puts a
-    // laboratory in a list of provinces. Everywhere outside DRC is shown by
-    // country instead.
-    const place = s => {
-      const DRC = "Democratic Republic of the Congo";
-      if (s.country === DRC) {
-        return (s.province && s.province !== "\u2014") ? s.province
-                                                   : "DRC, province not given";
-      }
-      return (s.country && s.country !== "\u2014") ? s.country : "Unknown";
-    };
+    const key = locationDrill ? zoneOf : regionOf;
+    if (title) title.textContent = locationDrill
+      ? `${locationDrill} \u00b7 health zones by week`
+      : "Collection location by week";
+    if (back) back.style.display = locationDrill ? "inline-block" : "none";
+
     const totals = {};
-    dated.forEach(s => { totals[place(s)] = (totals[place(s)] || 0) + 1; });
+    rows.forEach(s => { totals[key(s)] = (totals[key(s)] || 0) + 1; });
     const ranked = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
 
     const TOP = 8;
@@ -715,10 +764,10 @@
     const series = named.concat(ranked.length > TOP ? ["Other"] : []);
 
     const byWeek = {};
-    dated.forEach(s => {
+    rows.forEach(s => {
       const w = isoWeekStart(s.dateNorm);
-      const p = keep.has(place(s)) ? place(s) : "Other";
-      (byWeek[w] = byWeek[w] || {})[p] = (byWeek[w][p] || 0) + 1;
+      const k = keep.has(key(s)) ? key(s) : "Other";
+      (byWeek[w] = byWeek[w] || {})[k] = (byWeek[w][k] || 0) + 1;
     });
 
     const weeks = Object.keys(byWeek).sort();
@@ -726,19 +775,32 @@
       new Date(w + "T00:00:00Z").toLocaleDateString("en-GB",
         { day: "numeric", month: "short", timeZone: "UTC" }));
 
-    const datasets = series.map((p, i) => ({
-      label: p,
-      data: weeks.map(w => byWeek[w][p] || 0),
+    const datasets = series.map((k, i) => ({
+      label: k,
+      data: weeks.map(w => byWeek[w][k] || 0),
       backgroundColor: LOCATION_PALETTE[i % LOCATION_PALETTE.length],
       borderWidth: 0,
     }));
 
+    // Which top-level regions are worth drilling into: only those with more
+    // than one distinct health zone recorded.
+    const drillable = new Set();
+    if (!locationDrill) {
+      const zones = {};
+      allSequences.forEach(s => {
+        (zones[regionOf(s)] = zones[regionOf(s)] || new Set()).add(zoneOf(s));
+      });
+      Object.keys(zones).forEach(r => { if (zones[r].size > 1) drillable.add(r); });
+    }
+
     if (note) {
-      const undated = allSequences.length - dated.length;
-      note.textContent =
-        `${dated.length} genomes, ${ranked.length} locations` +
-        (ranked.length > TOP ? ` (${ranked.length - TOP} grouped as Other)` : "") +
-        (undated ? ` \u00b7 ${undated} without a collection date` : "");
+      const undated = allSequences.length - rows.length;
+      note.textContent = locationDrill
+        ? `${rows.length} genomes, ${ranked.length} health zones`
+          + (ranked.length > TOP ? ` (${ranked.length - TOP} grouped as Other)` : "")
+        : `${rows.length} genomes, ${ranked.length} locations`
+          + (ranked.length > TOP ? ` (${ranked.length - TOP} grouped as Other)` : "")
+          + " \u00b7 click a bar to see health zones";
     }
 
     if (locationChart) locationChart.destroy();
@@ -749,6 +811,18 @@
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
+        onClick: (evt, els) => {
+          if (locationDrill || !els.length) return;
+          const label = locationChart.data.datasets[els[0].datasetIndex].label;
+          if (!drillable.has(label)) return;   // "Other" and single-zone regions
+          locationDrill = label;
+          renderLocationChart();
+        },
+        onHover: (evt, els) => {
+          const over = !locationDrill && els.length &&
+            drillable.has(locationChart.data.datasets[els[0].datasetIndex].label);
+          evt.native.target.style.cursor = over ? "pointer" : "default";
+        },
         plugins: {
           legend: { position: "top", labels: { font: { size: 10 }, boxWidth: 10, padding: 6 } },
           tooltip: {
@@ -815,6 +889,7 @@
         dateNorm:      normalizeDate(s.sampleCollectionDate),
         country:       s.geoLocCountry                          || "—",
         province:      toTitleCase(s.geoLocAdmin1               || "—"),
+        admin2:        s.geoLocAdmin2                           || "",
         location: (() => {
           const a1 = toTitleCase(s.geoLocAdmin1 || '');
           const a2 = toTitleCase(s.geoLocAdmin2 || '');
