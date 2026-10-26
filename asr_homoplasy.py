@@ -238,13 +238,18 @@ def main():
     ap.add_argument("--alignment", required=True)
     ap.add_argument("--genbank")
     ap.add_argument("--min-state-prob", type=float, default=0.9)
+    ap.add_argument("--tree", help="Tree to walk, if not <prefix>.treefile. "
+                                   "Used to pass the short-branch-collapsed "
+                                   "tree while the states still come from the "
+                                   "prefix IQ-TREE wrote.")
     ap.add_argument("--out", default="asr_homoplasy_report.txt")
     ap.add_argument("--json-out", default="asr_homoplasy.json")
     args = ap.parse_args()
 
     # tree with internal node labels
-    tree_path = None
-    for cand in (f"{args.prefix}.asr.tree", f"{args.prefix}.treefile"):
+    tree_path = args.tree if args.tree and os.path.exists(args.tree) else None
+    for cand in ([] if tree_path else
+                 (f"{args.prefix}.asr.tree", f"{args.prefix}.treefile")):
         if os.path.exists(cand):
             tree_path = cand
             break

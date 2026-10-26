@@ -36,6 +36,7 @@ MASK_SITES="${MASK_SITES:-7461}"
 # misplaced. Masked by the Nextstrain BDBV build and by published phylodynamic
 # analyses of this outbreak.
 MASK_START="${MASK_START:-40}"
+COLLAPSE_SNPS="${COLLAPSE_SNPS:-0.5}"
 MASK_END="${MASK_END:-40}"
 # Rate outliers and QC failures, per the Nextstrain BDBV exclusion list. ADAR-
 # edited genomes are deliberately NOT excluded - their edits are masked instead.
@@ -131,9 +132,20 @@ else
 fi
 
 echo
+echo "== collapsing branches too short to carry a substitution =="
+# IQ-TREE's --polytomy only removes branches that are effectively zero, so
+# bifurcations of a fraction of a substitution survive and are then counted as
+# internal evidence, which they cannot support. Collapse them first.
+COLLAPSED_TREE="${ACTIVE_PREFIX}.collapsed.tree"
+python3 collapse_short_branches.py "${ACTIVE_PREFIX}.treefile" \
+    --out "$COLLAPSED_TREE" \
+    --min-substitutions "${COLLAPSE_SNPS:-0.5}"
+
+echo
 echo "== 5/6 counting substitutions per branch =="
 python3 asr_homoplasy.py \
     --prefix "$ACTIVE_PREFIX" \
+    --tree "$COLLAPSED_TREE" \
     --posmap "${PREFIX}_input.posmap.json" \
     --alignment "$ACTIVE_ALIGNMENT" \
     --genbank "$GENBANK" \
@@ -151,7 +163,7 @@ echo
 echo "== rebuilding dashboard tree =="
 # Same tree the convergence analysis ran on, so carrier highlighting in the
 # homoplasy panel matches the tips actually analysed.
-python3 generate_local_tree.py "${ACTIVE_PREFIX}.treefile"
+python3 generate_local_tree.py "$COLLAPSED_TREE"
 
 echo
 echo "Done."
