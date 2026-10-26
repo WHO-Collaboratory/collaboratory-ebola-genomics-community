@@ -372,7 +372,7 @@
     <div class="card-header">
       <h2>Genomes over time</h2>
     </div>
-    <div id="timeline-grid" style="display:grid;grid-template-columns:minmax(0,1fr);gap:20px;padding:16px;">
+    <div id="timeline-grid" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;padding:16px;">
 
       <!-- Left: Genome counts over time -->
       <div style="border:1px solid #ddd;border-radius:4px;padding:12px;background:#fafafa;display:flex;flex-direction:column;">
@@ -380,6 +380,15 @@
         <div style="height:180px;flex:1;position:relative;">
           <canvas id="genomesChart" style="width:100%;height:100%;"></canvas>
         </div>
+      </div>
+
+      <!-- Middle: where those genomes came from, same weekly buckets -->
+      <div style="border:1px solid #ddd;border-radius:4px;padding:12px;background:#fafafa;display:flex;flex-direction:column;">
+        <div style="font-size:0.9rem;font-weight:600;color:#222;margin-bottom:12px;">Collection location by week</div>
+        <div style="height:180px;flex:1;position:relative;">
+          <canvas id="locationChart" style="width:100%;height:100%;"></canvas>
+        </div>
+        <div style="font-size:0.75rem;color:#666;margin-top:8px;text-align:center;" id="location-note"></div>
       </div>
 
       <!-- Right: selected mutation frequency over time. Hidden with the
@@ -507,7 +516,15 @@
 
   // Chart state
   let genomesChart = null;
+  let locationChart = null;
   let allSequences = [];
+
+  // Carto Bold, the palette the tree uses for country and province, so a
+  // province keeps roughly the same colour between the two views.
+  const LOCATION_PALETTE = [
+    "#7F3C8D", "#11A579", "#3969AC", "#F2B701", "#E73F74", "#80BA5A",
+    "#E68310", "#008695", "#CF1C90", "#f97b72", "#4b4b8f", "#A5AA99"
+  ];
 
   function buildTimeSeries(seqs, field) {
     const counts = {};
@@ -542,7 +559,10 @@
   function toTitleCase(str) {
     if (!str || str === "—") return str;
     if (str.toLowerCase() === "ex-drc") return "ex-DRC";
-    return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+    // Split on hyphens too, or "Nord-Kivu" comes back as "Nord-kivu".
+    return str.replace(/\w\S*/g, w => w.split("-")
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join("-"));
   }
 
   function normalizeDate(d) {
@@ -642,6 +662,109 @@
             beginAtZero: true,
             grid: { color: "rgba(0,0,0,0.06)" }
           }
+        }
+      }
+    });
+
+    renderLocationChart();
+  }
+
+  // Monday of the ISO week containing `iso`, in UTC. Weekly buckets rather
+  // than daily: collection dates are sparse enough that a daily stack is
+  // mostly single-genome bars.
+  function isoWeekStart(iso) {
+    const d = new Date(iso + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  }
+
+  // Where genomes were collected, over time. Stacked, so bar height is the
+  // week's sequencing volume and the composition shows the provinces behind
+  // it. Only the commonest provinces get their own colour; a long tail of
+  // one-genome provinces would make the legend unreadable.
+  function renderLocationChart() {
+    const canvas = document.getElementById("locationChart");
+    if (!canvas) return;
+    const dated = allSequences.filter(s => s.dateNorm && s.dateNorm !== "\u2014");
+    const note = document.getElementById("location-note");
+    if (!dated.length) {
+      if (note) note.textContent = "No collection dates available";
+      return;
+    }
+
+    // geoLocAdmin1 is only a province for DRC records. Uganda repeats the
+    // country there, the three Kenyan genomes carry the sequencing lab
+    // (NGMSL) and the Nigerian one a city, so plotting the raw field puts a
+    // laboratory in a list of provinces. Everywhere outside DRC is shown by
+    // country instead.
+    const place = s => {
+      const DRC = "Democratic Republic of the Congo";
+      if (s.country === DRC) {
+        return (s.province && s.province !== "\u2014") ? s.province
+                                                   : "DRC, province not given";
+      }
+      return (s.country && s.country !== "\u2014") ? s.country : "Unknown";
+    };
+    const totals = {};
+    dated.forEach(s => { totals[place(s)] = (totals[place(s)] || 0) + 1; });
+    const ranked = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
+
+    const TOP = 8;
+    const named = ranked.slice(0, TOP);
+    const keep = new Set(named);
+    const series = named.concat(ranked.length > TOP ? ["Other"] : []);
+
+    const byWeek = {};
+    dated.forEach(s => {
+      const w = isoWeekStart(s.dateNorm);
+      const p = keep.has(place(s)) ? place(s) : "Other";
+      (byWeek[w] = byWeek[w] || {})[p] = (byWeek[w][p] || 0) + 1;
+    });
+
+    const weeks = Object.keys(byWeek).sort();
+    const labels = weeks.map(w =>
+      new Date(w + "T00:00:00Z").toLocaleDateString("en-GB",
+        { day: "numeric", month: "short", timeZone: "UTC" }));
+
+    const datasets = series.map((p, i) => ({
+      label: p,
+      data: weeks.map(w => byWeek[w][p] || 0),
+      backgroundColor: LOCATION_PALETTE[i % LOCATION_PALETTE.length],
+      borderWidth: 0,
+    }));
+
+    if (note) {
+      const undated = allSequences.length - dated.length;
+      note.textContent =
+        `${dated.length} genomes, ${ranked.length} locations` +
+        (ranked.length > TOP ? ` (${ranked.length - TOP} grouped as Other)` : "") +
+        (undated ? ` \u00b7 ${undated} without a collection date` : "");
+    }
+
+    if (locationChart) locationChart.destroy();
+    locationChart = new Chart(canvas.getContext("2d"), {
+      type: "bar",
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { position: "top", labels: { font: { size: 10 }, boxWidth: 10, padding: 6 } },
+          tooltip: {
+            callbacks: {
+              title: items => `Week beginning ${weeks[items[0].dataIndex]}`,
+              // Chart.js lists every series, including the empty ones
+              label: c => c.raw ? `${c.dataset.label}: ${c.raw}` : null,
+            }
+          }
+        },
+        scales: {
+          x: { stacked: true, ticks: { font: { size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 10 },
+               grid: { display: false } },
+          y: { stacked: true, beginAtZero: true,
+               title: { display: true, text: "Genomes collected", font: { size: 11 } },
+               ticks: { precision: 0 }, grid: { color: "rgba(0,0,0,0.06)" } }
         }
       }
     });
@@ -1203,8 +1326,9 @@
     // minmax(0,...), not 1fr: a grid track's default minimum is its content
     // width, and the genomes canvas keeps the width it was given as a single
     // column, which would leave the revealed chart a sliver.
-    if (tgrid) tgrid.style.gridTemplateColumns =
-      showing ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(0,1fr)';
+    if (tgrid) tgrid.style.gridTemplateColumns = showing
+      ? 'minmax(0,1fr) minmax(0,1fr)'
+      : 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)';
     if (btn) {
       btn.style.background = showing ? '#fff' : '#e05c3a';
       btn.style.color      = showing ? '#555' : '#fff';
