@@ -386,8 +386,11 @@
       <div style="border:1px solid #ddd;border-radius:4px;padding:12px;background:#fafafa;display:flex;flex-direction:column;">
         <div style="font-size:0.9rem;font-weight:600;color:#222;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <span id="location-title">Collection location by week</span>
+          <!-- visibility, not display: the button is taller than the title
+               text, so showing it on drill would grow the card header and
+               stretch every card in the row with it. -->
           <button id="location-back" onclick="locationDrillUp()"
-                  style="display:none;font-size:0.72rem;font-weight:600;padding:2px 8px;
+                  style="visibility:hidden;font-size:0.72rem;font-weight:600;padding:2px 8px;
                          border:1px solid #bbb;border-radius:3px;background:#fff;color:#555;cursor:pointer;">
             ← All locations</button>
         </div>
@@ -752,7 +755,7 @@
     if (title) title.textContent = locationDrill
       ? `${locationDrill} \u00b7 health zones by week`
       : "Collection location by week";
-    if (back) back.style.display = locationDrill ? "inline-block" : "none";
+    if (back) back.style.visibility = locationDrill ? "visible" : "hidden";
 
     const totals = {};
     rows.forEach(s => { totals[key(s)] = (totals[key(s)] || 0) + 1; });
