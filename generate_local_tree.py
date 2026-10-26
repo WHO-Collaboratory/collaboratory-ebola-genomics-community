@@ -201,7 +201,21 @@ def add_metadata(match):
     if not is_precise_date(date):
         date = ''
 
-    loc = admin2 or admin1 or country
+    # Outside DRC the sub-national fields are not reliably a place: Uganda
+    # repeats the country in admin1, the Kenyan genomes carry the sequencing
+    # laboratory (NGMSL) and the Nigerian one a city. Prefixing the country
+    # makes a tip like "Abuja" or "NGMSL" readable as "Nigeria - Abuja" or
+    # "Kenya - NGMSL" without discarding what was submitted.
+    DRC = "Democratic Republic of the Congo"
+    sub = admin2 or admin1
+    # "unknown" / "Not provided" are non-answers, not places
+    if sub and sub.strip().lower() in {"unknown", "not provided", "not stated",
+                                       "n/a", "na", "none"}:
+        sub = ""
+    if country and country != DRC:
+        loc = f"{country} - {sub}" if sub and sub != country else country
+    else:
+        loc = sub or country
     epiweek = iso_epi_week(date)
 
     # Format date
