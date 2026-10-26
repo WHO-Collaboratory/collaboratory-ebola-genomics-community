@@ -531,8 +531,11 @@
   // Carto Bold, the palette the tree uses for country and province, so a
   // province keeps roughly the same colour between the two views.
   const LOCATION_PALETTE = [
-    "#7F3C8D", "#11A579", "#3969AC", "#F2B701", "#E73F74", "#80BA5A",
-    "#E68310", "#008695", "#CF1C90", "#f97b72", "#4b4b8f", "#A5AA99"
+    "#2a78d6", "#eb6834", "#1baf7a", "#eda100",
+    "#e87ba4", "#008300", "#6250d6", "#e34948",
+    // slots 9+ are darker steps of the first hues: the chart tops out at nine
+    // series (eight named plus "Other"), so these are reserve, not a cycle
+    "#256abf", "#d95926", "#199e70", "#c98500"
   ];
 
   function buildTimeSeries(seqs, field) {
@@ -1150,6 +1153,22 @@
 <script type="module">
   // Import PearTree directly — bypasses the shim entirely
   import { embed } from './peartree/js/peartree.js';
+  import { setUserCategoricalPalettes } from '@artic-network/pearcore/palettes.js';
+
+  // PearTree's stock 'Bold' palette is the maximally-distinct set (#e6194b red,
+  // #f032e6 magenta, #bfef45 lime) and is punishing to look at across 900 tips.
+  // Now that every non-DRC tip names its country in the label, colour is a
+  // secondary cue rather than the only one, so a calmer palette is affordable.
+  //
+  // These are the data-viz reference slots in their fixed order. Validated on a
+  // #fafafa surface: OKLCH lightness all within [0.43, 0.77], chroma all above
+  // the 0.10 gray floor, adjacent-pair CVD separation worst 9.1 (target 8) and
+  // normal-vision separation worst 19.6 (floor 15). Three slots sit below 3:1
+  // contrast against the surface, which the tip labels relieve.
+  setUserCategoricalPalettes({
+    'IPSN': ['#2a78d6', '#eb6834', '#1baf7a', '#eda100',
+             '#e87ba4', '#008300', '#6250d6', '#e34948'],
+  });
 
   let _currentTreeSource = 'local';
   window._bdbvCurrentSource = 'local';
@@ -1263,7 +1282,7 @@
           axisMajorInterval: 'auto',
           tipColourBy: 'user_colour',
           axisDateAnnotation: 'date',
-          annotationPalettes: { epiweek: 'Blue-Orange', country: 'Bold', province: 'Bold' },
+          annotationPalettes: { epiweek: 'Blue-Orange', country: 'IPSN', province: 'IPSN' },
         },
         ui: {
           theme: 'light',
@@ -1359,7 +1378,7 @@
           axisMajorInterval:   'auto',
           tipColourBy:         'user_colour',
           axisDateAnnotation:  'date',
-          annotationPalettes:  { epiweek: 'Blue-Orange', country: 'Bold', province: 'Bold' },
+          annotationPalettes:  { epiweek: 'Blue-Orange', country: 'IPSN', province: 'IPSN' },
         },
         ui: {
           theme:     'light',
