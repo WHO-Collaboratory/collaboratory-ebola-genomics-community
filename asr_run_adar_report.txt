@@ -1,10 +1,10 @@
 ADAR EDITING CLUSTERS
 ============================================================
 Parameters      : runs of >=3 T>C edits, max 200 nt apart
-Genomes         : 910
-Genomes affected: 95
-Bases masked    : 397
-Branches with a new or extended run: 29
+Genomes         : 914
+Genomes affected: 94
+Bases masked    : 392
+Branches with a new or extended run: 27
 
 Runs are detected on the tree, so a run inherited by a clade is one
 event; the first edit of each run is kept and the rest masked to N.
@@ -15,13 +15,13 @@ Most-edited genomes:
   PP_007LTQC.1         17 masked  (7071-7447)
   PP_00805T0.1         16 masked  (7071-7447)
   PP_0082S4N.1         12 masked  (7294-7552)
-  PP_0082RV6.1         10 masked  (4191-4353)
-  PP_0082BSS.1         10 masked  (4191-4353)
-  PP_0082RZY.1         10 masked  (4191-4353)
-  PP_007LU5G.1         10 masked  (4191-4353)
   PP_00764QW.1         10 masked  (7405-7552)
-  PP_0082RSC.1          7 masked  (7285-11520)
-  PP_0081H8R.1          7 masked  (7285-11520)
-  PP_0082RTA.1          7 masked  (7285-11520)
+  PP_007LU5G.1         10 masked  (4191-4353)
+  PP_0082BSS.1         10 masked  (4191-4353)
+  PP_0082RV6.1         10 masked  (4191-4353)
+  PP_0082RZY.1         10 masked  (4191-4353)
   PP_007BZQR.1          7 masked  (7354-7552)
-  PP_007C6F1.1          6 masked  (9563-9607)
+  PP_0081H8R.1          7 masked  (7285-11520)
+  PP_0082RSC.1          7 masked  (7285-11520)
+  PP_0082RTA.1          7 masked  (7285-11520)
+  PP_00805MC.1          6 masked  (2242-13012)
