@@ -945,6 +945,9 @@
         allSequences = seqs;
         const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         window._bdbvNewAccessions = new Set(seqs.filter(s => s.firstReleased >= cutoff).map(s => s.id));
+        // The local tree may already be on screen, drawn before this set
+        // existed and so carrying no "new" marks for the New button to show.
+        if (window.refreshNewTips) refreshNewTips();
         window._bdbvLocationMap = Object.fromEntries(seqs.filter(s => s.id !== "—").map(s => [s.id, s.location]));
         window._bdbvCountryMap  = Object.fromEntries(seqs.filter(s => s.id !== "—").map(s => [s.id, s.country]));
         window._bdbvProvinceMap = Object.fromEntries(seqs.filter(s => s.id !== "—").map(s => [s.id, s.province]));
@@ -1207,6 +1210,9 @@
   let _localTreeDeployed = null;
   let _localTreeCommit;   // undefined = not asked yet, null = unavailable
   let _localTreeTipCount = null;
+  // Size of the new-accession set the embedded local tree was marked with.
+  // -1 until a local tree has been embedded at all.
+  let _localTreeMarkedCount = -1;
 
   const REPO_SLUG = 'WHO-Collaboratory/collaboratory-ebola-genomics-community';
 
@@ -1326,6 +1332,33 @@
     );
   }
 
+  /**
+   * Re-embed the local tree if it was drawn before Pathoplexus said which
+   * genomes are new.
+   *
+   * markNewTips reads window._bdbvNewAccessions, which the LAPIS query fills
+   * in. local_tree.nwk comes from the same CDN as the page while that query
+   * goes to a remote API and then builds 1,300 records, so the tree often
+   * wins: the newick is embedded with no user_colour on any tip and the New
+   * button then colours nothing. That is the intermittent failure - nothing
+   * is wrong with the button, the tree it is colouring has no marks.
+   *
+   * Re-embedding resets the view, so this only fires when the marks actually
+   * changed, and only in the second or so after load before anyone has
+   * panned or zoomed.
+   */
+  window.refreshNewTips = function refreshNewTips() {
+    if (_currentTreeSource !== 'local') return;
+    // An embed in flight has not recorded its marks yet; the call at the end
+    // of that embed covers this case, so do not start a second one.
+    if (!window._bdbvTreeCtrl) return;
+    const have = window._bdbvNewAccessions?.size ?? 0;
+    if (!have || have === _localTreeMarkedCount) return;
+    console.log(`[refreshNewTips] re-embedding: marked with `
+      + `${_localTreeMarkedCount}, now ${have} new accessions`);
+    switchTreeSource('local');
+  };
+
   window.switchTreeSource = async function(source) {
     console.log(`[switchTreeSource] Called with source=${source}`);
     _currentTreeSource = source;
@@ -1364,6 +1397,7 @@
       // baking it into the file — "new" is relative to today and would go
       // stale between pipeline runs.
       treeData = markNewTips(_localTreeData);
+      _localTreeMarkedCount = window._bdbvNewAccessions?.size ?? 0;
     } else {
       treeData = window._bdbvNexusOriginal;
       console.log(`[switchTreeSource] Using Nextstrain tree, available=${!!treeData}`);
@@ -1442,6 +1476,8 @@
         // Not awaited: api.github.com must never hold up the tree. The
         // lookup redraws the caption itself when it resolves.
         treeCommit().then(renderLocalTreeCaption);
+        // Covers the LAPIS query landing while this embed was in flight.
+        refreshNewTips();
       } else {
         document.getElementById('peartree-status').innerHTML =
           `${tipCount} outbreak genomes · live from Nextstrain (updated 2026-09-10) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
