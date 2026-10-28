@@ -1201,6 +1201,85 @@
   let _currentTreeSource = 'local';
   window._bdbvCurrentSource = 'local';
   let _localTreeData = null;
+  // When the served copy of local_tree.nwk was last written. On GitHub Pages
+  // this is the CDN's Last-Modified, which is when the file reached
+  // production - later than the commit, because Pages builds after the merge.
+  let _localTreeDeployed = null;
+  let _localTreeCommit;   // undefined = not asked yet, null = unavailable
+
+  const REPO_SLUG = 'WHO-Collaboratory/collaboratory-ebola-genomics-community';
+
+  /**
+   * The commit that last changed local_tree.nwk on the default branch.
+   *
+   * Unauthenticated api.github.com allows 60 requests an hour per IP, which is
+   * ample for one call per page load but is not guaranteed, so every failure
+   * resolves to null and the caption simply omits the commit. Nothing on the
+   * page waits for this.
+   */
+  async function treeCommit() {
+    if (_localTreeCommit !== undefined) return _localTreeCommit;
+    _localTreeCommit = null;
+    try {
+      const resp = await fetch(
+        `https://api.github.com/repos/${REPO_SLUG}/commits`
+        + '?path=local_tree.nwk&per_page=1',
+        { headers: { Accept: 'application/vnd.github+json' } });
+      if (!resp.ok) return null;
+      const [c] = await resp.json();
+      if (c && c.sha) {
+        _localTreeCommit = { sha: c.sha, url: c.html_url,
+                             date: c.commit?.committer?.date || null };
+      }
+    } catch (e) {
+      console.warn('[provenance] commit lookup failed:', e);
+    }
+    return _localTreeCommit;
+  }
+
+  /** '28 Oct 2026 16:52 UTC', or null for anything unparseable. */
+  function utcStamp(value) {
+    if (!value) return null;
+    const d = new Date(value);
+    if (isNaN(d)) return null;
+    const date = d.toLocaleDateString('en-GB',
+      { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const time = d.toLocaleTimeString('en-GB',
+      { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+    return `${date} ${time} UTC`;
+  }
+
+  /**
+   * Append provenance to the local-tree caption once the commit lookup
+   * returns. Appended rather than awaited so the tree is never held up by
+   * api.github.com, and skipped if the viewer has switched trees meanwhile.
+   */
+  async function appendTreeProvenance() {
+    const el = document.getElementById('peartree-status');
+    if (!el) return;
+    const marker = el.dataset.captionId;
+    const commit = await treeCommit();
+    const live = utcStamp(_localTreeDeployed);
+    if (!commit && !live) return;
+    if (_currentTreeSource !== 'local' || el.dataset.captionId !== marker) return;
+
+    // Pages builds after the merge, so for a few minutes the newest commit
+    // is not the one being served. Saying which commit the page was built
+    // from would be wrong in that window, so check the order and say so.
+    const stale = commit && commit.date && _localTreeDeployed
+      && new Date(_localTreeDeployed) < new Date(commit.date);
+
+    const bits = [];
+    if (commit) {
+      const link = `<a href="${commit.url}" target="_blank" `
+        + `style="color:#009EDB;" title="${commit.sha}">`
+        + `${commit.sha.slice(0, 7)}</a>`;
+      bits.push(stale ? `rebuild ${link} not yet published`
+                      : `built from ${link}`);
+    }
+    if (live) bits.push(`live since ${live}`);
+    el.innerHTML += ` · ${bits.join(', ')}`;
+  }
 
   /**
    * Add the "new" styling to tips of a pre-built Newick: a star in the label
@@ -1249,6 +1328,7 @@
           if (resp.ok) {
             const newick = (await resp.text()).trim();
             _localTreeData = newick;
+            _localTreeDeployed = resp.headers.get('Last-Modified');
             console.log(`[switchTreeSource] Loaded local tree, length=${_localTreeData.length}`);
           } else {
             console.error('Local tree not available:', resp.status);
@@ -1340,13 +1420,18 @@
       // Update status text based on tree source
       const tipCount = (treeToEmbed.match(/\[&accession=/g) || []).length;
       if (source === 'local') {
-        document.getElementById('peartree-status').innerHTML =
+        const status = document.getElementById('peartree-status');
+        status.innerHTML =
           `${tipCount} outbreak genomes · locally inferred tree (IQ-Tree`
           + (homoplasyMetadata && homoplasyMetadata.n_sequences_before_filter
               ? `, ${homoplasyMetadata.n_sequences_before_filter} submitted, `
                 + `${homoplasyMetadata.n_sequences} passing QC`
               : '')
           + `) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
+        // Stamps this caption so a late provenance lookup cannot append
+        // itself to a caption that has since been rewritten.
+        status.dataset.captionId = String(Date.now());
+        appendTreeProvenance();
       } else {
         document.getElementById('peartree-status').innerHTML =
           `${tipCount} outbreak genomes · live from Nextstrain (updated 2026-09-10) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
