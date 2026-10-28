@@ -1657,21 +1657,27 @@
   function setTreeColour(mode) {
     const btns = { new: 'btn-colour-new', country: 'btn-colour-country', province: 'btn-colour-province', location: 'btn-colour-loc', epiweek: 'btn-colour-epiweek', none: 'btn-clear-highlight' };
 
-    if (mode !== 'none') {
-      // Regular color mode
-      _currentTreeMode = mode;
-      const colourBy = { new: 'user_colour', country: 'country', province: 'province', location: 'location', epiweek: 'epiweek' }[mode] || 'country';
+    _currentTreeMode = mode;
 
-      ['tip-colour-by', 'label-colour-by'].forEach(id => {
-        const select = document.getElementById(id);
-        if (select) {
-          select.value = colourBy;
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
+    // PearTree's colour-by dropdowns have no "off" entry, and its embed API
+    // ignores tipColourBy altogether - _applySettingsRuntime never reads it -
+    // so None is a value no option carries. The change handler then runs
+    // setTipColourBy(value || null), and a null key drops the colour scale,
+    // leaving every tip in the default colour. This is what None was meant
+    // to do all along: it used to return without touching the tree, so the
+    // button lit up and nothing else happened.
+    const colourBy = {
+      new: 'user_colour', country: 'country', province: 'province',
+      location: 'location', epiweek: 'epiweek', none: '',
+    }[mode] ?? 'country';
 
-    }
-    // If mode is 'none', don't change coloring - just leave tree as-is
+    ['tip-colour-by', 'label-colour-by'].forEach(id => {
+      const select = document.getElementById(id);
+      if (select) {
+        select.value = colourBy;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
 
     // Update button styling
     Object.entries(btns).forEach(([m, id]) => {
