@@ -36,6 +36,18 @@ import sys
 from collections import Counter, defaultdict
 
 MISSING = set("N-?")
+
+# Sequences present only to root the tree: the 2007 BDBV reference passed as
+# the outgroup, plus the 2007 contextual genome the download step adds. They
+# are not part of the outbreak population, so anything that reasons about
+# outbreak genomes - the consensus, ADAR masking - must leave them out.
+# Version suffixes vary between releases, so compare on the bare accession.
+CONTEXTUAL_ROOT_SEQUENCES = ("PP_006X68B",)
+
+
+def bare_accession(name):
+    """Accession without its trailing version suffix."""
+    return re.sub(r"\.\d+$", "", name)
 CODON_TABLE = {
     "TTT": "F", "TTC": "F", "TTA": "L", "TTG": "L", "CTT": "L", "CTC": "L",
     "CTA": "L", "CTG": "L", "ATT": "I", "ATC": "I", "ATA": "I", "ATG": "M",

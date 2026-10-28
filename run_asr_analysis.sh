@@ -101,6 +101,7 @@ else
         --out-alignment "${PREFIX}_input.adar.fasta" \
         --max-gap "${ADAR_MAX_GAP:-200}" \
         --min-count "${ADAR_MIN_COUNT:-3}" \
+        --outgroup "$OUTGROUP" \
         ${ADAR_NO_GENOME_PASS:+--no-genome-pass} \
         --report "${PREFIX}_adar_report.txt"
 

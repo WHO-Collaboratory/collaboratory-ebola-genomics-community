@@ -30,6 +30,11 @@ each genome is also swept against the consensus, independently of the tree,
 which finds the tract wherever the genome has landed. Use --no-genome-pass
 to run the tree walk alone.
 
+Sequences that are only there to root the tree are never masked, by name
+rather than by any test: they are decades divergent, so some of their T>C
+differences fall close together by chance, and they are the last sequences
+that should lose signal.
+
 Follows the approach taken by the Nextstrain BDBV build
 (nextstrain/ebola, phylogenetic/scripts/adar-mutations.py), which replaced an
 earlier policy of discarding ADAR-edited genomes outright.
@@ -46,7 +51,10 @@ import sys
 from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from asr_homoplasy import parse_newick, load_fasta, load_state_file  # noqa: E402
+from asr_homoplasy import (  # noqa: E402
+    CONTEXTUAL_ROOT_SEQUENCES, bare_accession, parse_newick, load_fasta,
+    load_state_file,
+)
 
 MISSING = set("N-?")
 
@@ -73,6 +81,10 @@ def main():
     ap.add_argument("--max-run-span", type=int, default=1000,
                     help="Maximum nt from the first to the last edit of a run "
                          "(default 1000).")
+    ap.add_argument("--outgroup", default="",
+                    help="Comma-separated rooting sequences, which are never "
+                         "masked and never counted toward the consensus. The "
+                         "contextual 2007 genome is added automatically.")
     ap.add_argument("--no-genome-pass", action="store_true",
                     help="Skip the per-genome sweep and mask only what the "
                          "tree walk found.")
@@ -84,6 +96,16 @@ def main():
     ap.add_argument("--report", default="adar_report.txt")
     args = ap.parse_args()
 
+    # Rooting sequences are excluded from masking as a rule, not by passing a
+    # test. They are decades divergent from the outbreak, so a handful of
+    # their T>C differences fall within max_gap of each other by chance and
+    # look like a run; masking those damages the sequences the tree is rooted
+    # on, which is the worst place to lose signal. Whether a sequence is there
+    # to root the tree is something we know, so it does not need inferring.
+    root_names = {bare_accession(a.strip()) for a in args.outgroup.split(",")
+                  if a.strip()}
+    root_names.update(CONTEXTUAL_ROOT_SEQUENCES)
+
     aln = args.alignment or f"{args.prefix}_input.fasta"
     posmap_path = f"{args.prefix}_input.posmap.json"
     for p in (f"{args.prefix}.treefile", f"{args.prefix}.state", aln, posmap_path):
@@ -92,6 +114,9 @@ def main():
 
     root = parse_newick(open(f"{args.prefix}.treefile").read())
     seqs = load_fasta(aln)
+    rooting = {n for n in seqs if bare_accession(n) in root_names}
+    print(f"Rooting sequences exempt from masking: "
+          f"{', '.join(sorted(rooting)) or 'none found'}")
     states, _ = load_state_file(f"{args.prefix}.state", 0.9)
     posmap = json.load(open(posmap_path))
     cols = {int(k): v for k, v in posmap["columns"].items()}
@@ -179,6 +204,8 @@ def main():
                                [g for r in runs for _, g in r]))
 
         if not node.children:
+            if node.name in rooting:
+                return
             # Mask every edit in a run except the first.
             for r in runs:
                 for site, _ in r[1:]:
@@ -208,7 +235,7 @@ def main():
     genome_pass_bases = 0
     genome_pass_genomes = set()
     if not args.no_genome_pass:
-        names = list(seqs)
+        names = [n for n in seqs if n not in rooting]
         n_genomes = len(names)
 
         consensus = {}
@@ -243,14 +270,16 @@ def main():
                 if is_adar(anc, b):
                     edits.append((site, genomic[site]))
 
-            # The same test the tree walk applies to a branch, applied to a
-            # genome. A sequence that is simply distant from the consensus -
-            # the 2007 rooting outgroups are 193 differences away - has enough
-            # T>C changes among the rest for a few to fall within max_gap by
-            # chance, and masking those would damage the sequences that root
-            # the tree. Editing is not like that: it dominates. Measured here,
-            # the outgroups are 31% T>C and every hypermutated genome is
-            # 80-86%, so a simple majority separates them.
+            # The rooting sequences are already exempt by name, so this is
+            # not what keeps them safe. It is here for a genome we do not
+            # know about in advance: a divergent import would also sit far
+            # from the consensus, and masking it would quietly erase the
+            # evidence that it is divergent. A genuinely distant genome
+            # differs in every direction - the 2007 outgroups are 31% T>C -
+            # while an edited one is dominated by T>C, 80-86% in this
+            # dataset. Requiring a majority masks the edited case and leaves
+            # the divergent one intact, to be looked at rather than filed
+            # away.
             if not edits or len(edits) / total_diffs < args.min_fraction:
                 continue
             edits.sort(key=lambda sg: sg[1])

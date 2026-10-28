@@ -25,7 +25,11 @@ import argparse
 import datetime
 import json
 import os
+import sys
 from collections import Counter
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from asr_homoplasy import CONTEXTUAL_ROOT_SEQUENCES  # noqa: E402
 
 TRANSITIONS = {("A", "G"), ("G", "A"), ("C", "T"), ("T", "C")}
 
@@ -73,7 +77,8 @@ def exclusions(meta):
         "stage": "display",
     })
     outgroup = meta.get("outgroup")
-    roots = sorted({a for a in ([outgroup] if outgroup else []) + ["PP_006X68B.1"]})
+    roots = sorted({a for a in ([outgroup] if outgroup else [])
+                    + [f"{a}.1" for a in CONTEXTUAL_ROOT_SEQUENCES]})
     groups.append({
         "reason": "Rooting outgroups (used to root the tree, not displayed)",
         "count": len(roots),
