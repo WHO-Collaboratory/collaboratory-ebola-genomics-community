@@ -1206,6 +1206,7 @@
   // production - later than the commit, because Pages builds after the merge.
   let _localTreeDeployed = null;
   let _localTreeCommit;   // undefined = not asked yet, null = unavailable
+  let _localTreeTipCount = null;
 
   const REPO_SLUG = 'WHO-Collaboratory/collaboratory-ebola-genomics-community';
 
@@ -1250,22 +1251,36 @@
   }
 
   /**
-   * Append provenance to the local-tree caption once the commit lookup
-   * returns. Appended rather than awaited so the tree is never held up by
-   * api.github.com, and skipped if the viewer has switched trees meanwhile.
+   * Draw the local-tree caption from whatever is known right now.
+   *
+   * Three things arrive on their own schedule: the tree, the submitted and
+   * QC counts in homoplasy_data.json, and the commit lookup. Composing the
+   * caption from current state and re-running it on each arrival keeps all
+   * three, where appending to it dropped whichever had not landed yet - on
+   * most loads that was the submitted/QC counts, since the tree usually
+   * renders before the JSON parses. Idempotent, so callers need not care
+   * how often it runs.
    */
-  async function appendTreeProvenance() {
+  window.renderLocalTreeCaption = function renderLocalTreeCaption() {
     const el = document.getElementById('peartree-status');
-    if (!el) return;
-    const marker = el.dataset.captionId;
-    const commit = await treeCommit();
-    const live = utcStamp(_localTreeDeployed);
-    if (!commit && !live) return;
-    if (_currentTreeSource !== 'local' || el.dataset.captionId !== marker) return;
+    if (!el || _currentTreeSource !== 'local' || _localTreeTipCount === null) {
+      return;
+    }
+
+    let html = `${_localTreeTipCount} outbreak genomes · locally inferred `
+      + 'tree (IQ-Tree'
+      + (homoplasyMetadata && homoplasyMetadata.n_sequences_before_filter
+          ? `, ${homoplasyMetadata.n_sequences_before_filter} submitted, `
+            + `${homoplasyMetadata.n_sequences} passing QC`
+          : '')
+      + ') · visualised with <a href="https://github.com/artic-network/peartree"'
+      + ' target="_blank" style="color:#009EDB;">PearTree</a>';
 
     // Pages builds after the merge, so for a few minutes the newest commit
     // is not the one being served. Saying which commit the page was built
     // from would be wrong in that window, so check the order and say so.
+    const commit = _localTreeCommit;
+    const live = utcStamp(_localTreeDeployed);
     const stale = commit && commit.date && _localTreeDeployed
       && new Date(_localTreeDeployed) < new Date(commit.date);
 
@@ -1278,8 +1293,10 @@
                       : `built from ${link}`);
     }
     if (live) bits.push(`live since ${live}`);
-    el.innerHTML += ` · ${bits.join(', ')}`;
-  }
+    if (bits.length) html += ` · ${bits.join(', ')}`;
+
+    el.innerHTML = html;
+  };
 
   /**
    * Add the "new" styling to tips of a pre-built Newick: a star in the label
@@ -1420,18 +1437,11 @@
       // Update status text based on tree source
       const tipCount = (treeToEmbed.match(/\[&accession=/g) || []).length;
       if (source === 'local') {
-        const status = document.getElementById('peartree-status');
-        status.innerHTML =
-          `${tipCount} outbreak genomes · locally inferred tree (IQ-Tree`
-          + (homoplasyMetadata && homoplasyMetadata.n_sequences_before_filter
-              ? `, ${homoplasyMetadata.n_sequences_before_filter} submitted, `
-                + `${homoplasyMetadata.n_sequences} passing QC`
-              : '')
-          + `) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
-        // Stamps this caption so a late provenance lookup cannot append
-        // itself to a caption that has since been rewritten.
-        status.dataset.captionId = String(Date.now());
-        appendTreeProvenance();
+        _localTreeTipCount = tipCount;
+        renderLocalTreeCaption();
+        // Not awaited: api.github.com must never hold up the tree. The
+        // lookup redraws the caption itself when it resolves.
+        treeCommit().then(renderLocalTreeCaption);
       } else {
         document.getElementById('peartree-status').innerHTML =
           `${tipCount} outbreak genomes · live from Nextstrain (updated 2026-09-10) · visualised with <a href="https://github.com/artic-network/peartree" target="_blank" style="color:#009EDB;">PearTree</a>`;
@@ -1797,6 +1807,9 @@ async function loadHomoplasyData() {
     homoplasyMetadata = data.metadata || {};
     renderExclusions();
     renderHomoplasyMethod();
+    // The tree usually renders before this file parses, so the caption was
+    // drawn without the submitted and QC counts. Draw it again with them.
+    if (window.renderLocalTreeCaption) renderLocalTreeCaption();
 
     // Add IDs and normalize field names
     allHomoplasyEvents = events.map((event, idx) => ({
