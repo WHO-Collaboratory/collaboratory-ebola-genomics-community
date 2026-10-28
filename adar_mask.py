@@ -21,6 +21,15 @@ than reverting to the ancestral base because the unedited state is not
 observed - N is honest, and downstream phylogenetics treats it as missing
 rather than as evidence.
 
+The tree walk alone is not enough. It can only see a run the topology keeps
+on one branch, and a hypermutated genome is pulled toward the root by the
+very divergence its tract creates - which splits the tract across the basal
+branches, drops each piece below min_count, and leaves most of it unmasked.
+Two Bundibugyo genomes reached the root of the published tree that way. So
+each genome is also swept against the consensus, independently of the tree,
+which finds the tract wherever the genome has landed. Use --no-genome-pass
+to run the tree walk alone.
+
 Follows the approach taken by the Nextstrain BDBV build
 (nextstrain/ebola, phylogenetic/scripts/adar-mutations.py), which replaced an
 earlier policy of discarding ADAR-edited genomes outright.
@@ -64,6 +73,14 @@ def main():
     ap.add_argument("--max-run-span", type=int, default=1000,
                     help="Maximum nt from the first to the last edit of a run "
                          "(default 1000).")
+    ap.add_argument("--no-genome-pass", action="store_true",
+                    help="Skip the per-genome sweep and mask only what the "
+                         "tree walk found.")
+    ap.add_argument("--max-edit-frequency", type=float, default=0.10,
+                    help="The genome sweep ignores a position where more than "
+                         "this fraction of genomes differ from the consensus, "
+                         "so common variation is never mistaken for an edit "
+                         "(default 0.10).")
     ap.add_argument("--report", default="adar_report.txt")
     args = ap.parse_args()
 
@@ -173,6 +190,90 @@ def main():
 
     walk(root, None, {})
 
+    # ---- second pass: the same runs, found without the tree ----------
+    #
+    # The tree walk counts a run shared by a clade as one event, which is
+    # right, but it can only see a run that the topology keeps on one branch.
+    # When a tract is split across branches - which is what happens to a
+    # hypermutated genome drawn toward the root by the very divergence the
+    # tract creates - each piece falls below min_count and most of the tract
+    # survives. That is circular: incomplete masking moves the genome, and
+    # moving it breaks the tract up further.
+    #
+    # So sweep each genome against the consensus as well. A tract is a tract
+    # wherever the genome sits, and this pass does not depend on the tree at
+    # all. It keeps the first edit of each run per genome, so a tract shared
+    # by two genomes costs one extra retained edit compared with the tree
+    # walk - against roughly eight left unmasked when a split goes unnoticed.
+    genome_pass_bases = 0
+    genome_pass_genomes = set()
+    if not args.no_genome_pass:
+        names = list(seqs)
+        n_genomes = len(names)
+
+        consensus = {}
+        edit_freq = {}
+        for site in variable:
+            counts = defaultdict(int)
+            for nm in names:
+                b = seqs[nm][site - 1].upper()
+                if b not in MISSING:
+                    counts[b] += 1
+            if not counts:
+                continue
+            base = max(counts, key=counts.get)
+            consensus[site] = base
+            called = sum(counts.values())
+            edit_freq[site] = (called - counts[base]) / called if called else 1.0
+
+        for nm in names:
+            seq = seqs[nm]
+            edits = []
+            total_diffs = 0
+            for site in variable:
+                anc = consensus.get(site)
+                if anc is None or edit_freq.get(site, 1.0) > args.max_edit_frequency:
+                    # Carried by many genomes, so it is variation the outbreak
+                    # shares, not a private editing tract.
+                    continue
+                b = seq[site - 1].upper()
+                if b in MISSING or b == anc:
+                    continue
+                total_diffs += 1
+                if is_adar(anc, b):
+                    edits.append((site, genomic[site]))
+
+            # The same test the tree walk applies to a branch, applied to a
+            # genome. A sequence that is simply distant from the consensus -
+            # the 2007 rooting outgroups are 193 differences away - has enough
+            # T>C changes among the rest for a few to fall within max_gap by
+            # chance, and masking those would damage the sequences that root
+            # the tree. Editing is not like that: it dominates. Measured here,
+            # the outgroups are 31% T>C and every hypermutated genome is
+            # 80-86%, so a simple majority separates them.
+            if not edits or len(edits) / total_diffs < args.min_fraction:
+                continue
+            edits.sort(key=lambda sg: sg[1])
+
+            runs, current = [], []
+            for site, gpos in edits:
+                if current and gpos - current[-1][1] > args.max_gap:
+                    if len(current) >= args.min_count:
+                        runs.append(current)
+                    current = []
+                current.append((site, gpos))
+            if len(current) >= args.min_count:
+                runs.append(current)
+            runs = [r for r in runs
+                    if r[-1][1] - r[0][1] <= args.max_run_span]
+
+            for r in runs:
+                for site, _ in r[1:]:
+                    if site not in to_mask[nm]:
+                        to_mask[nm].add(site)
+                        genome_pass_bases += 1
+                        genome_pass_genomes.add(nm)
+
     # ---- apply the mask ----
     masked_bases = 0
     out = {}
@@ -212,9 +313,14 @@ def main():
         f"Genomes affected: {affected}",
         f"Bases masked    : {masked_bases}",
         f"Branches with a new or extended run: {len(runs_found)}",
+        f"Added by the per-genome sweep: {genome_pass_bases} base(s) in "
+        f"{len(genome_pass_genomes)} genome(s)",
         "",
         "Runs are detected on the tree, so a run inherited by a clade is one",
         "event; the first edit of each run is kept and the rest masked to N.",
+        "",
+        "Each genome is then swept against the consensus independently of the",
+        "tree, which catches a tract the topology had split across branches.",
         "",
         "Most-edited genomes:",
     ]
@@ -234,6 +340,9 @@ def main():
         "genomes_affected": affected,
         "bases_masked": masked_bases,
         "branches_with_runs": len(runs_found),
+        "genome_pass_bases": genome_pass_bases,
+        "genome_pass_genomes": len(genome_pass_genomes),
+        "max_edit_frequency": args.max_edit_frequency,
         # Per-genome detail, so the dashboard can name which isolates carry
         # masked positions. These genomes are analysed, not excluded: only the
         # edited positions are set to N.

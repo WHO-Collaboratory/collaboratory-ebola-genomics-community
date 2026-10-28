@@ -91,12 +91,17 @@ else
     # mint spurious homoplasies. Keep the first edit of each run, mask the
     # rest. Needs the tree and ancestral states, so it runs after the first
     # reconstruction and before the counting.
+    #
+    # The tree walk is followed by a sweep of each genome against the
+    # consensus, which finds a tract the topology had split across branches.
+    # ADAR_NO_GENOME_PASS=1 runs the tree walk alone.
     python3 adar_mask.py \
         --prefix "$PREFIX" \
         --alignment "${PREFIX}_input.fasta" \
         --out-alignment "${PREFIX}_input.adar.fasta" \
         --max-gap "${ADAR_MAX_GAP:-200}" \
         --min-count "${ADAR_MIN_COUNT:-3}" \
+        ${ADAR_NO_GENOME_PASS:+--no-genome-pass} \
         --report "${PREFIX}_adar_report.txt"
 
     echo
