@@ -312,7 +312,13 @@
             </div>
           </div>
         </div>
-        <div id="bdbv-tree-2026" style="flex:1;overflow:hidden;"></div>
+        <!-- auto, not hidden: PearTree is embedded at a fixed 560px, while this
+             card is 750px less a header that grows taller as the column
+             narrows. Opening the convergence panel narrows it enough to clip
+             87px of the tree, and with overflow hidden there was no way to
+             reach it. min-height:0 lets this flex child shrink below its
+             content so the scrollbar appears instead of the card stretching. -->
+        <div id="bdbv-tree-2026" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;"></div>
         <div style="padding:6px 16px 10px;font-size:0.75rem;color:#666;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;flex-shrink:0;">
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e05c3a;vertical-align:middle;margin-right:4px;"></span><span style="color:#e05c3a;font-weight:700;">★</span> Uploaded in the last 7 days</span>
           <span style="color:#999;font-style:italic;">2026 outbreak subtree · rooted using 2007 BDBV strain (not shown)</span>
@@ -1430,7 +1436,10 @@
         container: 'bdbv-tree-2026',
         tree: treeToEmbed,
         filename: source === 'local' ? 'local_tree.nexus' : 'bdbv_2026.nexus',
-        height: '560px',
+        // 100%, not a fixed 560px: the card is 750px less a header that grows
+        // taller as the column narrows, so a fixed height leaves the tree
+        // clipped by 12px normally and 87px with the convergence panel open.
+        height: '100%',
         settings: {
           tipLabelShow: 'names',
           tipLabelAlign: 'off',
@@ -1526,7 +1535,7 @@
         container: 'bdbv-tree-2026',
         tree:      window._bdbvNexus,
         filename:  'bdbv_2026.nexus',
-        height:    '560px',
+        height:    '100%',
         settings: {
           tipLabelShow:        'names',
           tipLabelAlign:       'off',
