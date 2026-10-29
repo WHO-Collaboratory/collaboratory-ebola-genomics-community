@@ -116,12 +116,21 @@ The approach that has emerged is to **keep the first edit of each run and mask t
 
 | Source | Criterion | Scope |
 |---|---|---|
-| [INRB and partners](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-5-october-2026/1051) | ≥3 T→C (or A→G) from the majority base, each within 300 nt | 96 of 838 genomes, 342 positions |
+| [INRB and partners](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-6-september-2026/1047) | ≥3 T→C, or ≥3 A→G, from the majority base, each within 300 nt | 51 of 680 analysed genomes, 178 positions |
 | [Nextstrain BDBV build](https://github.com/nextstrain/ebola) | ≥3 T→C, each within 200 nt, detected on the phylogeny | Replaced an earlier policy of excluding edited genomes (2026-10-19) |
 
 Keeping the first edit records that the event occurred and leaves the branch supported; masking the rest stops one event being counted many times. N is used rather than reverting to the ancestral base, because the unedited state is not observed.
 
-> ⚠️ Detection per genome against the majority base, and detection on the phylogeny, do not give the same answer. On a long branch carrying many substitutions of every kind, some T→C will fall close together by chance and be mistaken for an editing event. Whichever approach is used, the number of genomes flagged should be compared against an independent analysis of the same data.
+The two criteria differ in more than their window. Detection on the phylogeny treats a run shared by a clade as a single event, but sees only a run that the topology holds on one branch. Detection per genome against the majority base does not depend on the tree, but counts a run shared by several genomes once in each of them. Their failure modes differ accordingly:
+
+- A hypermutated genome is drawn toward the root by the divergence its own tract creates. The tract is then split across the basal branches, each piece falls below the minimum run length, and most of it escapes masking. The incomplete masking and the misplacement reinforce one another.
+- A sequence that is merely distant from the consensus, such as one included to root the tree, carries enough T→C differences for some to fall within the window by chance. Masking those removes real signal from the sequences least able to spare it.
+
+Applying both detections addresses the first. Exempting rooting sequences by name, and requiring T→C to form a majority of the differences being clustered, addresses the second.
+
+> Measured in [this repository's implementation](https://github.com/WHO-Collaboratory/collaboratory-ebola-genomics-community) on the 1,075-genome alignment of 28 October 2026: detection on the phylogeny alone masked 381 positions across 72 genomes; adding per-genome detection raised this to 455 across 81. For one pair of genomes, phylogeny-only detection masked 10 and 11 positions of tracts of 18 and 19. The remainder presented as shared divergence and placed both genomes at the root of the tree.
+
+> ⚠️ A→G appears as a separate run type in the INRB criterion. Whether it is warranted is dataset-specific and can be tested directly: cluster the changes of each type, then repeat the clustering with the same changes placed at random positions. In the 1,011-genome alignment of 26 October 2026, T→C runs were found in 109 genomes against 8.0 expected by chance, while A→G runs were found in 2 against 2.4 expected, and both of those were rooting sequences rather than outbreak genomes. A positional null of this kind separates a processive editing signal from chance clustering and is inexpensive to compute.
 
 **Genome termini.** The terminal positions carry sequencing artefacts and are where ragged genome ends are most often misplaced during alignment. INRB and partners mask the last 40 positions; an earlier analysis trimmed the alignment to 18,900. The Nextstrain build masks 50 from each end.
 
@@ -149,7 +158,7 @@ Early analyses used a fixed substitution rate of 1.2–1.9 × 10⁻³ substituti
 
 Note this is roughly **half** the EBOV-derived rate previously assumed, so tMRCA estimates based on the older figure will have been too recent.
 
-Reproduction number estimates are now available over the course of the outbreak, from [Delphy](https://github.com/broadinstitute/delphy) and BEAST X analyses: R ≈ 1.94 (95% HPD 1.57–2.31) before the outbreak was declared, falling to 1.27 (1.00–1.56) for 15 May – 15 June and 0.86 (0.73–0.99) for 15 June – 27 September. See the [October post](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-5-october-2026/1051) for the caveats, which are substantial.
+Reproduction number estimates are available over the course of the outbreak, from [Delphy](https://github.com/broadinstitute/delphy) and BEAST X analyses of genomes collected to 6 September 2026: R = 1.95 (95% HPD 1.59–2.32) between 1 March and 15 May, before the outbreak was declared, falling to 1.17 (0.87–1.50) for 15 May – 15 June and 0.72 (0.59–0.86) for 15 June – 29 August. BEAST X returns nearly the same values under the primary model. The final period is not uniform: an exploratory division gives 0.92 (0.76–1.09) for 15 June – 1 August and 0.45 (0.20–0.76) for 1 – 29 August. See the [post](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-6-september-2026/1047) for the caveats, which are substantial.
 
 ### Convergent mutations and selection
 
@@ -193,9 +202,8 @@ From INRB Kinshasa and partners unless noted. Listed most recent first.
 
 | Date | Post |
 |---|---|
-| Oct 2026 | [Reproduction number over time — genomes to 5 October 2026](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-5-october-2026/1051) — Delphy and BEAST X; ADAR masking criteria; terminal masking |
 | Oct 2026 | [Temporal and Phylodynamic analyses of the 2026 BVD outbreak in the DRC](https://virological.org/t/temporal-and-phylodynamic-analyses-of-the-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo/1048) — announces the preprint above |
-| Oct 2026 | [Reproduction number over time — genomes to 6 September 2026](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-6-september-2026/1047) |
+| Oct 2026 | [Reproduction number over time — genomes to 6 September 2026](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-6-september-2026/1047) — Delphy and BEAST X; ADAR masking criteria; terminal masking |
 | Aug 2026 | [Phylodynamics and evolution: insights from a 100-day window](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046) — evolutionary rate, tMRCA, ADAR handling, rooting by residual minimisation |
 | Jul 2026 | [Genomic epidemiology of the ongoing 2026 BVD outbreak in the DRC](https://virological.org/t/genomic-epidemiology-of-the-ongoing-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo/1045) — laboratory and sequencing methods |
 | Jun 2026 | [Molecular evolutionary analysis of the current BVD outbreak in DRC and Uganda](https://virological.org/t/molecular-evolutionary-analysis-of-the-current-bundibugyo-virus-disease-outbreak-in-drc-and-uganda/1042) |
