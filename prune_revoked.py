@@ -38,14 +38,43 @@ import urllib.request
 LAPIS = "https://lapis.pathoplexus.org/ebola-bdbv/sample/details"
 
 
-def revoked_accessions(timeout=60):
-    """Accessions whose submission has been revoked, version suffix stripped."""
+# Kept on the revoked version, which is why the removal can still say what
+# was withdrawn. The latest version has every field stripped.
+REVOKED_FIELDS = ("accession", "accessionVersion", "geoLocCountry",
+                  "geoLocAdmin1", "sampleCollectionDate", "groupName",
+                  "releasedDate", "versionComment")
+
+
+def revoked_records(timeout=60):
+    """Revoked submissions, keyed by accession with the version suffix stripped."""
     url = (f"{LAPIS}?versionStatus=REVOKED&dataFormat=JSON"
-           "&fields=accession,accessionVersion")
+           f"&fields={','.join(REVOKED_FIELDS)}")
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         rows = json.loads(r.read())["data"]
-    return {row["accession"] for row in rows if row.get("accession")}
+    return {row["accession"]: row for row in rows if row.get("accession")}
+
+
+def revoked_accessions(timeout=60):
+    """Accessions whose submission has been revoked, version suffix stripped."""
+    return set(revoked_records(timeout=timeout))
+
+
+def removal_table(accessions, records):
+    """A markdown table of what this run withdrew, for the pull request body."""
+    if not accessions:
+        return ""
+    head = ("| Accession | Country | Province | Collected | Submitted by | Released |\n"
+            "| --- | --- | --- | --- | --- | --- |")
+    rows = []
+    for acc in accessions:
+        r = records.get(acc, {})
+        cells = [r.get("accessionVersion") or acc,
+                 r.get("geoLocCountry"), r.get("geoLocAdmin1"),
+                 r.get("sampleCollectionDate"), r.get("groupName"),
+                 r.get("releasedDate")]
+        rows.append("| " + " | ".join(str(c) if c else "—" for c in cells) + " |")
+    return "\n".join([head] + rows)
 
 
 def prune_tree(text, revoked):
@@ -125,12 +154,15 @@ def main():
     ap.add_argument("--tree", default="local_tree.nwk")
     ap.add_argument("--data", default="homoplasy_data.json")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--removed-table",
+                    help="write a markdown table of this run's removals here")
     args = ap.parse_args()
 
     try:
-        revoked = revoked_accessions()
+        records = revoked_records()
     except Exception as exc:
         sys.exit(f"Could not read the revoked list from Pathoplexus: {exc}")
+    revoked = set(records)
     print(f"Pathoplexus reports {len(revoked)} revoked record(s)")
 
     tree_text = open(args.tree).read()
@@ -173,6 +205,13 @@ def main():
     for acc in sorted(set(removed) | set(in_data)):
         if acc not in note:
             note.append(acc)
+
+    withdrawn = sorted(set(removed) | set(in_data))
+    if args.removed_table:
+        with open(args.removed_table, "w") as fh:
+            fh.write(removal_table(withdrawn, records))
+            fh.write("\n")
+        print(f"  wrote the removal table to {args.removed_table}")
 
     if args.dry_run:
         print("\n--dry-run: nothing written")

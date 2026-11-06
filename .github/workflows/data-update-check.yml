@@ -229,14 +229,23 @@ jobs:
         # convergence figures are a snapshot and keep showing it until the
         # next rebuild. This runs daily so that gap is a day at most.
         run: |
-          python3 prune_revoked.py
+          python3 prune_revoked.py --removed-table revoked_table.md
           if git diff --quiet -- local_tree.nwk homoplasy_data.json; then
             echo "changed=no" >> "$GITHUB_OUTPUT"
             echo "No revoked genomes in the published artefacts."
           else
             echo "changed=yes" >> "$GITHUB_OUTPUT"
             git --no-pager diff --stat -- local_tree.nwk homoplasy_data.json
+            # Carried into the pull request body so the notification names
+            # what was withdrawn, rather than only that something was.
+            {
+              echo "table<<REVOKED_TABLE_EOF"
+              cat revoked_table.md
+              echo "REVOKED_TABLE_EOF"
+            } >> "$GITHUB_OUTPUT"
+            cat revoked_table.md
           fi
+          rm -f revoked_table.md
         id: prune
 
       - name: Open a pull request for the removal
@@ -252,8 +261,13 @@ jobs:
             revoked list.
           title: "Remove revoked genome(s) from the published artefacts"
           body: |
-            One or more genomes on the published tree have been **revoked by
-            their submitters** in Pathoplexus. A revocation withdraws the
+            The following genomes have been withdrawn from the published
+            artefacts:
+
+            ${{ steps.prune.outputs.table }}
+
+            They have been **revoked by their submitters** in Pathoplexus.
+            A revocation withdraws the
             submission: the revoked version keeps its metadata and is marked
             REVOKED, and a new latest version is created with every field
             stripped, the outbreak tag included.
