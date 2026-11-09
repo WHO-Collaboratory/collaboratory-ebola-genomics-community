@@ -141,11 +141,19 @@ Early analyses applied a fixed substitution rate of 1.2–1.9 × 10⁻³ substit
 
 | Estimate | Value | Source |
 |---|---|---|
-| Evolutionary rate | 8.5 × 10⁻⁴ subs/site/year (95% HPD 7.3–9.8 × 10⁻⁴) | [100-day window analysis](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046), SkyGrid |
-| tMRCA | 22 February 2026 (95% HPD 16 Jan – 24 Mar 2026) | as above |
+| Evolutionary rate | 1.1 × 10⁻³ subs/site/year (95% HPD 1.0–1.2 × 10⁻³) | [982 genomes to 5 October 2026](https://virological.org/t/genomic-characterization-of-the-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo/1052) |
+| tMRCA | 19 February 2026 (95% HPD 4 Jan – 21 Mar 2026) | as above |
+| Evolutionary rate (earlier estimate) | 8.5 × 10⁻⁴ subs/site/year (95% HPD 7.3–9.8 × 10⁻⁴) | [100-day window analysis](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046), SkyGrid |
+| tMRCA (earlier estimate) | 22 February 2026 (95% HPD 16 Jan – 24 Mar 2026) | as above |
 | Root-to-tip slope | 7.9 × 10⁻⁴ | as above |
 
-This estimate is approximately **half** the EBOV-derived rate previously assumed; tMRCA estimates based on the older figure will therefore have been too recent.
+The two tMRCA estimates agree closely. The rate estimate has risen as genomes
+have accumulated, from approximately half the EBOV-derived figure previously
+assumed to a value approaching its lower bound. Analyses should cite the current
+estimate and state the data cut-off it rests on, since the interval between
+expected substitutions follows directly from it: approximately 23 days under
+the earlier estimate and approximately 18 days under the current one, for a
+genome of this length.
 
 Reproduction number estimates are available over the course of the outbreak, from [Delphy](https://github.com/broadinstitute/delphy) and BEAST X analyses of genomes collected to 6 September 2026: R = 1.95 (95% HPD 1.59–2.32) between 1 March and 15 May, before the outbreak was declared, falling to 1.17 (0.87–1.50) for 15 May – 15 June and 0.72 (0.59–0.86) for 15 June – 29 August. BEAST X returns nearly the same values under the primary model. The final period is not uniform: an exploratory division gives 0.92 (0.76–1.09) for 15 June – 1 August and 0.45 (0.20–0.76) for 1 – 29 August. See the [post](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-6-september-2026/1047) for the caveats, which are substantial.
 
@@ -191,6 +199,7 @@ From INRB Kinshasa and partners unless noted. Listed most recent first.
 
 | Date | Post |
 |---|---|
+| Nov 2026 | [Genomic characterization of the 2026 BVD outbreak in the DRC](https://virological.org/t/genomic-characterization-of-the-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo/1052) — 982 genomes collected to 5 October 2026; spatial coverage against case counts, genomic epidemic size, evolutionary rate and tMRCA |
 | Oct 2026 | [Temporal and Phylodynamic analyses of the 2026 BVD outbreak in the DRC](https://virological.org/t/temporal-and-phylodynamic-analyses-of-the-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo/1048) — announces the preprint above |
 | Oct 2026 | [Reproduction number over time — genomes to 6 September 2026](https://virological.org/t/reproduction-number-of-the-2026-bundibugyo-virus-disease-outbreak-over-time-phylodynamic-estimates-from-genomes-collected-up-to-6-september-2026/1047) — Delphy and BEAST X; ADAR masking criteria; terminal masking |
 | Aug 2026 | [Phylodynamics and evolution: insights from a 100-day window](https://virological.org/t/phylodynamics-and-evolution-of-the-2026-bundibugyo-virus-circulating-in-the-democratic-republic-of-the-congo-insights-from-a-100-day-window-of-genomic-sequencing/1046) — evolutionary rate, tMRCA, ADAR handling, rooting by residual minimisation |
