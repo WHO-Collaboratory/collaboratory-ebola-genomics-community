@@ -79,7 +79,11 @@ jobs:
           raccoon --version
           iqtree3 --version | head -1
 
-      - name: Build alignment and tree
+      - name: Build the alignment
+        # BUILD_TREE is left off. The pipeline's own tree search was an hour
+        # of every run and nothing read the result: the convergence step
+        # infers its own topology from this alignment, and that is the tree
+        # local_tree.nwk and homoplasy_data.json are built from.
         if: steps.check.outputs.run == 'yes'
         env:
           IQTREE_BIN: iqtree3
@@ -326,7 +330,6 @@ jobs:
           if-no-files-found: ignore
           path: |
             aln_ref_*.masked.fasta
-            aln_ref_*.masked.fasta.treefile
             asr_run_homoplasy.json
             asr_run_adar_report.*
             *.log

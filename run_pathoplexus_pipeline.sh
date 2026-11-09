@@ -23,7 +23,6 @@ QC_REPORT="${WORK_DIR}/seq-qc_report.html"
 FILTERED_SEQUENCES="${WORK_DIR}/sequences_filtered_${TIMESTAMP}.fasta"
 ALIGNED_FASTA="${WORK_DIR}/aln_ref_${TIMESTAMP}.fasta"
 MASKED_FASTA="${WORK_DIR}/aln_ref_${TIMESTAMP}.masked.fasta"
-TREE_FILE="${WORK_DIR}/aln_ref_${TIMESTAMP}.masked.fasta.treefile"
 
 echo "=========================================="
 echo "Pathoplexus 2026 Pipeline"
@@ -41,7 +40,9 @@ fi
 
 # Accept either a path to the binary or a command on PATH, so the same script
 # runs against a local download and a CI-installed build.
-if [ ! -x "$IQTREE_BIN" ] && ! command -v "$IQTREE_BIN" >/dev/null 2>&1; then
+# Only needed for the optional tree search in step 8.
+if [ "${BUILD_TREE:-0}" = "1" ] \
+   && [ ! -x "$IQTREE_BIN" ] && ! command -v "$IQTREE_BIN" >/dev/null 2>&1; then
     echo "ERROR: iqtree3 not found: $IQTREE_BIN"
     echo "Set IQTREE_BIN to the binary's path, or put it on PATH."
     exit 1
@@ -388,7 +389,18 @@ echo "✓ raccoon mask --mask-file mask_sites.csv complete"
 echo "   Masked alignment: $MASKED_FASTA"
 echo ""
 
-# Step 8: Run IQTree3
+# Step 8: Build a tree (off by default)
+#
+# Nothing downstream reads this tree. run_asr_analysis.sh takes the masked
+# alignment and infers its own topology; local_tree.nwk is written from that
+# ASR tree, and homoplasy_data.json records it as the tree it was computed
+# on. The search here cost roughly an hour of every CI run - a quarter of
+# which was ModelFinder re-deriving GTR+F+I+G4, which run_asr_analysis.sh
+# already hardcodes - and produced a file only the artefact upload touched.
+#
+# It is kept behind a switch because it is still useful by hand, for a quick
+# look at the alignment before committing to the full analysis.
+if [ "${BUILD_TREE:-0}" = "1" ]; then
 echo "[8/8] Building phylogenetic tree (IQTree3)..."
 # -seed and a fixed thread count, not -nt AUTO: without them the same
 # alignment gives a different tree on each run. Within this outbreak most
@@ -406,6 +418,10 @@ echo "[8/8] Building phylogenetic tree (IQTree3)..."
     -T "${IQTREE_THREADS:-4}"
 echo "✓ IQTree3 complete"
 echo "   Tree file: ${MASKED_FASTA}.treefile"
+else
+echo "[8/8] Skipping the tree search (set BUILD_TREE=1 to run it)."
+echo "   Nothing downstream uses it; run_asr_analysis.sh builds its own."
+fi
 echo ""
 
 # Summary
@@ -415,9 +431,9 @@ echo "=========================================="
 echo ""
 echo "Output files:"
 echo "  Masked alignment:    $MASKED_FASTA"
-echo "  Tree file:          ${MASKED_FASTA}.treefile"
+[ "${BUILD_TREE:-0}" = "1" ] && echo "  Tree file:          ${MASKED_FASTA}.treefile"
 echo ""
 echo "Next: ./run_asr_analysis.sh $MASKED_FASTA"
 echo "  Convergent-mutation analysis is a separate step and builds the"
-echo "  dashboard data from this alignment and tree."
+echo "  dashboard data, and its own tree, from this alignment."
 echo ""
