@@ -230,10 +230,12 @@ analyse () {
     python3 generate_local_tree.py "$collapsed" --out "$displaytree"
 }
 
+# Returns non-zero rather than exiting, so the caller can decide whether a
+# failure is fatal. `exit` here would end the shell even from inside an `if`.
 residual_tree () {
     if [ ! -f "$ROOT_METADATA" ]; then
         echo "Metadata not found: $ROOT_METADATA (set ROOT_METADATA=)"
-        exit 1
+        return 1
     fi
     echo
     echo "== re-rooting by residual minimisation =="
@@ -266,22 +268,55 @@ case "$ROOTING" in
         ;;
     both)
         echo "== rooting: publishing BOTH, residual minimisation primary =="
-        # Both outputs carry the flag; the second one needs it too, or
-        # switching to that rooting would hide the control that switches back.
-        DASHBOARD_FLAGS="--alternative-rooting"
-        residual_tree
-        # Residual minimisation writes the PRIMARY artefacts, because those
-        # are what prune_revoked.py, the CI comparison and any other consumer
-        # read by default. The outgroup rooting is the alternative.
-        analyse "${ACTIVE_PREFIX}.residual.treefile" "" \
-                "${PREFIX}_homoplasy.json" homoplasy_data.json local_tree.nwk \
-                residual
-        analyse "${ACTIVE_PREFIX}.treefile" "outgroup" \
-                "${PREFIX}_homoplasy_outgroup.json" \
-                homoplasy_data.outgroup.json local_tree.outgroup.nwk \
-                outgroup
+        # The rooting runs BEFORE any analysis, and this script is `set -e`.
+        # Left unguarded, a rooting that cannot be done honestly - no branch
+        # implying a positive clock rate, a --verify disagreement, missing
+        # metadata - would abort a three-hour rebuild and publish nothing at
+        # all, which is worse than the outgroup rooting this replaces.
+        #
+        # So in `both` the failure is caught: the outgroup rooting is
+        # published on its own, exactly as before this change, and the
+        # dashboard selector is withheld because there is no second pair to
+        # switch to. The run still succeeds, and the warning plus the
+        # `rooting` field in homoplasy_data.json say what happened. A run
+        # asking for `residual` alone is NOT caught - there the rooting is
+        # the point, and quietly substituting the other one would be a lie.
+        if residual_tree; then
+            # Residual minimisation writes the PRIMARY artefacts, because
+            # those are what prune_revoked.py, the CI comparison and every
+            # other consumer read by default. Outgroup is the alternative.
+            DASHBOARD_FLAGS="--alternative-rooting"
+            analyse "${ACTIVE_PREFIX}.residual.treefile" "" \
+                    "${PREFIX}_homoplasy.json" homoplasy_data.json \
+                    local_tree.nwk residual
+            analyse "${ACTIVE_PREFIX}.treefile" "outgroup" \
+                    "${PREFIX}_homoplasy_outgroup.json" \
+                    homoplasy_data.outgroup.json local_tree.outgroup.nwk \
+                    outgroup
+        else
+            ROOTING_FELL_BACK=1
+            echo
+            echo "WARNING: residual minimisation failed."
+            echo "   Publishing the outgroup rooting alone, as before this"
+            echo "   change, so the rebuild still produces artefacts. The"
+            echo "   rooting selector is withheld: there is no second pair."
+            echo "   Read the error above before merging - this is the"
+            echo "   rooting the dashboard no longer treats as reliable."
+            DASHBOARD_FLAGS=""
+            analyse "${ACTIVE_PREFIX}.treefile" "" \
+                    "${PREFIX}_homoplasy.json" homoplasy_data.json \
+                    local_tree.nwk outgroup
+            # Leave nothing stale behind: artefacts from an earlier successful
+            # run would otherwise sit beside data they do not match.
+            rm -f homoplasy_data.outgroup.json local_tree.outgroup.nwk
+        fi
         echo
+        if [ "${ROOTING_FELL_BACK:-0}" = "1" ]; then
+        echo "   ONE pair written: residual minimisation FAILED, outgroup"
+        echo "   rooting published in its place."
+        else
         echo "   Both pairs written. Primary = residual minimisation."
+        fi
         ;;
     *)
         echo "ROOTING must be both, residual or outgroup (got: $ROOTING)"

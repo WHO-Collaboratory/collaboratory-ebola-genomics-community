@@ -244,6 +244,31 @@ jobs:
                old_adar.get("bases_masked"), new_adar.get("bases_masked")),
           ]
 
+          # Which rooting produced the primary artefacts. The pipeline asks
+          # for both and falls back to the outgroup rooting alone if residual
+          # minimisation cannot be done honestly, so this must be stated
+          # rather than assumed - the convergence figures below are read off
+          # whichever rooted tree was used.
+          new_rooting = new.get("rooting", "outgroup")
+          old_rooting = old.get("rooting", "outgroup")
+          if new_rooting != "residual":
+              print("> [!WARNING]")
+              print("> **Residual minimisation did not run.** The primary "
+                    "artefacts below were rooted on the outgroup, which is "
+                    "the rooting this dashboard no longer treats as reliable "
+                    "for this outbreak, and no rooting selector is published. "
+                    "Check the workflow log for the reason before merging.")
+              print()
+          elif old_rooting != new_rooting:
+              print("> [!NOTE]")
+              print(f"> **Rooting changed: {old_rooting} -> {new_rooting}.** "
+                    "Independent origins and recurrent events are read off a "
+                    "rooted tree by walking parent to child, so the figures "
+                    "below move with the rooting as well as with the data. A "
+                    "change here is not on its own evidence of anything "
+                    "biological.")
+              print()
+
           print("| Figure | Field | Published | This run | Change |")
           print("|---|---|---:|---:|---:|")
           for label, field, o, n in rows:
