@@ -10,6 +10,13 @@ if [ -f pathoplexus_metadata.json ] && [ -s pathoplexus_metadata.json ]; then
     BDBV_2026=$(grep -o '"outbreak":"Bdbv-2026"' pathoplexus_metadata.json | wc -l)
     echo "✓ Fetched metadata for $COUNT sequences"
     echo "  Including $BDBV_2026 from 2026 outbreak"
+
+    # Reapply the declared corrections. Pathoplexus is the source of truth and
+    # this file is overwritten on every fetch, so a value fixed by hand lasts
+    # until the next run. See metadata_corrections.json for what is corrected
+    # and why. Never fails the fetch: a metadata correction is not worth
+    # losing the data over, and anything unresolved is printed.
+    python3 apply_metadata_corrections.py pathoplexus_metadata.json || true
 else
     echo "✗ Failed to fetch metadata"
     exit 1

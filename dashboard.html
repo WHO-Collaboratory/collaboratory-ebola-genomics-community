@@ -902,6 +902,69 @@
     });
   }
 
+  /**
+   * Locally declared corrections to Pathoplexus metadata.
+   *
+   * These are other laboratories' Restricted Use records. Nothing here amends
+   * a submission - only Pathoplexus can, at the submitter's request. This is
+   * a declared, reversible override so the published figures are not wrong
+   * while a revision is pending, and the page says so where it applies.
+   *
+   * Populated by applyMetadataCorrections(); read by the caption.
+   */
+  window._bdbvCorrectionsApplied = [];
+
+  async function applyMetadataCorrections(rows) {
+    window._bdbvCorrectionsApplied = [];
+    let corrections;
+    try {
+      const resp = await fetch('metadata_corrections.json', { cache: 'no-cache' });
+      if (!resp.ok) return;                       // none published
+      corrections = (await resp.json()).corrections || [];
+    } catch (e) {
+      console.warn('[corrections] could not load:', e);
+      return;
+    }
+    if (!corrections.length) return;
+
+    const byAccession = new Map();
+    for (const r of rows) {
+      if (!r || !r.accession) continue;
+      if (!byAccession.has(r.accession)) byAccession.set(r.accession, []);
+      byAccession.get(r.accession).push(r);
+    }
+
+    for (const c of corrections) {
+      const targets = byAccession.get(c.accession);
+      if (!targets) continue;                     // not in this query
+      for (const row of targets) {
+        if (row[c.field] === c.published) {
+          row[c.field] = c.corrected;
+          window._bdbvCorrectionsApplied.push(c);
+          console.log(`[corrections] ${c.accession}.${c.field}: `
+            + `${c.published} -> ${c.corrected}`);
+        } else if (row[c.field] !== c.corrected) {
+          // Neither the value it was written against nor the correction:
+          // something changed upstream that nobody has looked at. Leave it.
+          console.warn(`[corrections] ${c.accession}.${c.field} reads `
+            + `${row[c.field]}; correction not applied`);
+        }
+      }
+    }
+  }
+
+  /** One line naming any correction applied, for the data-source caption. */
+  function correctionsCaption() {
+    const applied = window._bdbvCorrectionsApplied || [];
+    if (!applied.length) return '';
+    const bits = applied.map(c =>
+      `${c.accession} ${c.field} shown as ${c.corrected}, published as `
+      + `${c.published}`);
+    return ` \u00b7 <span title="Declared in metadata_corrections.json and `
+      + `reported to Pathoplexus; the submission itself is unchanged.">`
+      + `corrected locally: ${bits.join('; ')}</span>`;
+  }
+
   async function loadSequences() {
     // Try LAPIS API — filter to 2026 outbreak only, public/no auth required
     try {
@@ -935,6 +998,19 @@
           }
         })
         .catch(() => {});
+
+      // Apply the declared metadata corrections to the live LAPIS rows.
+      //
+      // The pipeline corrects its own fetched copy, but this panel and the
+      // sequencing-volume chart query LAPIS directly in the browser, so
+      // without this the tree and the charts would disagree about a date.
+      // Both read metadata_corrections.json, which is the only place a
+      // submitter's declared value may be overridden.
+      //
+      // A correction is applied only where the record still holds the value
+      // it was written against, so once Pathoplexus is revised the override
+      // stops firing instead of silently overwriting the corrected value.
+      await applyMetadataCorrections(data.data || []);
 
       // Build lookup: accession → first-version releasedDate
       const firstReleasedMap = {};
@@ -973,7 +1049,11 @@
         window._bdbvProvinceMap = Object.fromEntries(seqs.filter(s => s.id !== "—").map(s => [s.id, s.province]));
         window._bdbvDateMap     = Object.fromEntries(seqs.filter(s => s.id !== "—" && s.date && s.date !== "—").map(s => [s.id, s.date]));
         tryBuildTree();
-        renderTable(seqs, `Live data from <a href="${LAPIS}/swagger-ui/index.html" target="_blank">LAPIS / Pathoplexus</a>`);
+        // Disclose any locally corrected value on the page itself. Overriding
+        // a submitter's declared metadata silently would not be acceptable,
+        // however well evidenced the correction is.
+        renderTable(seqs, `Live data from <a href="${LAPIS}/swagger-ui/index.html" target="_blank">LAPIS / Pathoplexus</a>`
+          + correctionsCaption());
         try { renderCharts(); setTimeout(matchTableHeight, 100); } catch(e) { console.warn("Chart error:", e); }
         return;
       }

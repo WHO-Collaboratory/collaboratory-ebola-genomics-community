@@ -149,6 +149,10 @@ else
     echo "✓ Downloaded metadata for $META_COUNT BDBV sequences"
     echo "  - $BDBV_2026 from 2026 outbreak"
     echo "  - Plus contextual sequences for rooting/context"
+
+    # Reapply the declared corrections; the download above overwrote them.
+    # See metadata_corrections.json. Never fails the pipeline.
+    python3 apply_metadata_corrections.py "$METADATA_FILE" || true
 fi
 echo ""
 
