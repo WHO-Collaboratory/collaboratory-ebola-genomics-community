@@ -1,0 +1,37 @@
+{
+  "_README": [
+    "Corrections applied to Pathoplexus metadata before it is used, and to the",
+    "live LAPIS query the dashboard makes. This file is the single source of",
+    "truth for both; nothing else may rewrite a submitter's declared value.",
+    "",
+    "These are other laboratories' Restricted Use records. A correction here",
+    "does not amend the submission - only Pathoplexus can do that, at the",
+    "submitter's request. It is a local, declared, reversible override so the",
+    "published figures are not wrong while the revision is pending, and every",
+    "entry must carry the evidence for it and be reported upstream.",
+    "",
+    "Each correction is applied ONLY where the record still holds the value in",
+    "'published'. When the submitter revises it, the correction stops matching,",
+    "apply_metadata_corrections.py reports it as superseded, and the entry",
+    "should be deleted. That way a stale override can never outlive the error",
+    "it was written for, or quietly overwrite a corrected value."
+  ],
+  "corrections": [
+    {
+      "accession": "PP_0085EVB",
+      "sample_id": "ISI-50",
+      "field": "sampleCollectionDate",
+      "published": "2025-07-25",
+      "corrected": "2026-07-25",
+      "noted": "2026-11-10",
+      "reported_upstream": false,
+      "evidence": [
+        "sampleReceivedDate is 2026-07-25, exactly one year after the stated collection date: the sample would have been received a year before it was taken.",
+        "sequencingDate is 2026-11-05 and the record is tagged outbreak=Bdbv-2026.",
+        "The genome is identical, zero differences, to six 2026 outbreak genomes, and sits a median of 10 substitutions from the rest of the outbreak. A genuine July 2025 genome would be ancestral to the outbreak, not embedded in the middle of it.",
+        "It is the only pre-2026 collection date among the 2026 outbreak records."
+      ],
+      "effect_if_uncorrected": "Stretches the sequencing-volume chart back a full year, compressing the outbreak into the right-hand third of the panel. Excluded from the rooting regression anyway by --min-year 2026."
+    }
+  ]
+}
