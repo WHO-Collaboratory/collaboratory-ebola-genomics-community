@@ -103,6 +103,15 @@ jobs:
           MAX_SEQ_MISSING: '0.15'
           MAX_SITE_MISSING: '0.10'
           LINEAGES: '0'
+          # Publish both rootings. The outgroup rooting is not stable for this
+          # outbreak - NC_014373.1 sits a median of 206 substitutions from the
+          # 2026 genomes while they sit a median of 11 from each other - so the
+          # dashboard publishes residual minimisation as the primary pair and
+          # offers the outgroup rooting beside it, so a reader can see how
+          # much of the basal structure depends on the choice.
+          # This does NOT repeat the ASR, which is the expensive step: only the
+          # counting and the tree build run twice.
+          ROOTING: 'both'
           # No thread override: the ASR tree is seeded and thread-pinned, and
           # IQ-TREE's parallel reductions are not order-independent, so a
           # different thread count here would give CI a different tree from a
@@ -164,8 +173,13 @@ jobs:
           OUT="$RUNNER_TEMP/outputs"
           mkdir -p "$OUT"
           for f in homoplasy_data.json local_tree.nwk \
-                   asr_run_homoplasy_report.txt asr_run_adar_report.txt; do
-            cp "$f" "$OUT/"
+                   homoplasy_data.outgroup.json local_tree.outgroup.nwk \
+                   asr_run_homoplasy_report.txt asr_run_adar_report.txt \
+                   asr_run_homoplasy_report_outgroup.txt \
+                   asr_run_root_fit.json; do
+            # The second rooting's outputs are absent unless ROOTING produced
+            # them, and an unconditional cp would abort the run.
+            [ -f "$f" ] && cp "$f" "$OUT/"
           done
           # The checkout pins origin/main to the dispatched commit, and
           # create-pull-request resets to that ref itself, so the fetch has to
@@ -229,6 +243,31 @@ jobs:
               ("ADAR: bases masked", "adar.bases_masked",
                old_adar.get("bases_masked"), new_adar.get("bases_masked")),
           ]
+
+          # Which rooting produced the primary artefacts. The pipeline asks
+          # for both and falls back to the outgroup rooting alone if residual
+          # minimisation cannot be done honestly, so this must be stated
+          # rather than assumed - the convergence figures below are read off
+          # whichever rooted tree was used.
+          new_rooting = new.get("rooting", "outgroup")
+          old_rooting = old.get("rooting", "outgroup")
+          if new_rooting != "residual":
+              print("> [!WARNING]")
+              print("> **Residual minimisation did not run.** The primary "
+                    "artefacts below were rooted on the outgroup, which is "
+                    "the rooting this dashboard no longer treats as reliable "
+                    "for this outbreak, and no rooting selector is published. "
+                    "Check the workflow log for the reason before merging.")
+              print()
+          elif old_rooting != new_rooting:
+              print("> [!NOTE]")
+              print(f"> **Rooting changed: {old_rooting} -> {new_rooting}.** "
+                    "Independent origins and recurrent events are read off a "
+                    "rooted tree by walking parent to child, so the figures "
+                    "below move with the rooting as well as with the data. A "
+                    "change here is not on its own evidence of anything "
+                    "biological.")
+              print()
 
           print("| Figure | Field | Published | This run | Change |")
           print("|---|---|---:|---:|---:|")
@@ -298,10 +337,14 @@ jobs:
             there is not on its own evidence of anything biological. A
             pipeline that exits cleanly can still be wrong, which is why this
             is a pull request rather than a push.
+          # Globs, not exact names: add-paths goes through `git add`, which
+          # fails outright on a pathspec that matches nothing, and the
+          # .outgroup. artefacts are absent unless ROOTING produced them.
+          # Each pattern always matches at least the primary artefact.
           add-paths: |
-            homoplasy_data.json
-            local_tree.nwk
-            asr_run_homoplasy_report.txt
+            homoplasy_data*.json
+            local_tree*.nwk
+            asr_run_homoplasy_report*.txt
             asr_run_adar_report.txt
             .github/data-versions.json
 
