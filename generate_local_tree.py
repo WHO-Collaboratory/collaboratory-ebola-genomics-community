@@ -12,8 +12,18 @@ sys.path.insert(0, '.')
 # NB: the previous glob was '*_20260*.masked.fasta.treefile', which cannot
 # match dates from October 2026 onward (20261008) and silently fell back to
 # a September tree. Selection is now by modification time over all trees.
-if len(sys.argv) > 1:
-    latest_tree = sys.argv[1]
+# Output path. Defaults to local_tree.nwk; the pipeline passes an explicit
+# path when it builds a second tree under the alternative rooting, so the two
+# can sit side by side for the dashboard's rooting selector.
+OUT_PATH = 'local_tree.nwk'
+_args = sys.argv[1:]
+if '--out' in _args:
+    _i = _args.index('--out')
+    OUT_PATH = _args[_i + 1]
+    del _args[_i:_i + 2]
+
+if _args:
+    latest_tree = _args[0]
 else:
     tree_files = [f for f in glob.glob('*.treefile') if os.path.exists(f)]
     if not tree_files:
@@ -238,9 +248,9 @@ def add_metadata(match):
 
 newick = re.sub(r'([A-Za-z0-9_\.]+)(?=:[0-9e\.\-])', add_metadata, newick)
 
-with open('local_tree.nwk', 'w') as f:
+with open(OUT_PATH, 'w') as f:
     f.write(newick)
 
-print(f"✓ Generated local_tree.nwk")
+print(f"✓ Generated {OUT_PATH}")
 print(f"  Branch lengths: preserved")
 print(f"  Metadata: {len(metadata)} sequences with epiweek, location, country, date")

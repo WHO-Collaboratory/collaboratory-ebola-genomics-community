@@ -100,6 +100,24 @@ def main():
     ap.add_argument("--in", dest="infile", default="asr_homoplasy.json")
     ap.add_argument("--out", dest="outfile", default="homoplasy_data.json")
     ap.add_argument("--min-recurrence", type=int, default=2)
+    ap.add_argument("--rooting", default="outgroup",
+                    choices=("outgroup", "residual"),
+                    help="Which rooting this analysis was computed on. The "
+                         "dashboard reads it to label the tree, so the caption "
+                         "describes the file actually loaded rather than "
+                         "whichever option the selector happens to show. "
+                         "Without it a run publishing one rooting could be "
+                         "captioned as the other.")
+    ap.add_argument("--alternative-rooting", action="store_true",
+                    help="Record that this analysis was published alongside a "
+                         "second one under a different rooting. dashboard.html "
+                         "shows its rooting selector on this flag alone, so "
+                         "that a run producing only one rooting hides the "
+                         "control rather than offering a file that 404s. Set "
+                         "by run_asr_analysis.sh with ROOTING=both, on "
+                         "both outputs - the residual file needs it too, or "
+                         "switching to that rooting would hide the control "
+                         "that switches back.")
     args = ap.parse_args()
 
     src = json.load(open(args.infile))
@@ -156,6 +174,8 @@ def main():
 
     out = {
         "metadata": {
+            "rooting": args.rooting,
+            "alternative_rooting": args.alternative_rooting,
             "method": ("IQ-TREE ancestral state reconstruction (--ancestral); "
                        "substitutions counted per branch, parent state vs "
                        "child state"),

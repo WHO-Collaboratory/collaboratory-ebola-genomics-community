@@ -298,6 +298,20 @@
               <option value="local">Local</option>
               <option value="nextstrain">Nextstrain</option>
             </select>
+            <!-- Rooting. Hidden unless local_tree.residual.nwk and
+                 homoplasy_data.residual.json are both served, so a pipeline run
+                 with ROOTING=outgroup removes the option rather than offering a
+                 broken one. Switching swaps the tree AND the convergence data
+                 together: recurrence_internal and the direction of every
+                 substitution are root-dependent (116 vs 128 recurrent sites,
+                 25 vs 33 internal), so a tree shown beside the other rooting's
+                 counts would be asserting origins it was not computed on. -->
+            <select id="rooting-select" onchange="switchRooting(this.value)"
+                    title="Which rooting the tree and the convergence analysis use"
+                    style="display:none;padding:3px 6px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.75rem;">
+              <option value="residual">Rooted: residual minimisation</option>
+              <option value="outgroup">Rooted: 2007 outgroup</option>
+            </select>
             <div id="tree-search" style="display:none;align-items:center;gap:4px;">
               <input id="tree-search-input" type="text" placeholder="Search accession…" oninput="searchTree(this.value)" onkeydown="if(event.key==='Escape'){this.value='';searchTree('');}" style="padding:3px 8px;font-size:0.75rem;border:1px solid #ddd;border-radius:6px;width:160px;outline:none;">
               <button onclick="document.getElementById('tree-search-input').value='';searchTree('');" style="padding:3px 7px;font-size:0.75rem;border:1px solid #ddd;border-radius:6px;background:#fff;color:#999;cursor:pointer;line-height:1;">✕</button>
@@ -321,7 +335,7 @@
         <div id="bdbv-tree-2026" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;"></div>
         <div style="padding:6px 16px 10px;font-size:0.75rem;color:#666;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;flex-shrink:0;">
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e05c3a;vertical-align:middle;margin-right:4px;"></span><span style="color:#e05c3a;font-weight:700;">★</span> Uploaded in the last 7 days</span>
-          <span style="color:#999;font-style:italic;">2026 outbreak subtree · rooted using 2007 BDBV strain (not shown)</span>
+          <span id="tree-rooting-caption" style="color:#999;font-style:italic;">2026 outbreak subtree · rooted using 2007 BDBV strain (not shown)</span>
         </div>
         <details id="tree-exclusions" style="padding:6px 16px 10px;font-size:0.7rem;color:#a00;border-top:1px solid #e8e8e8;line-height:1.4;flex-shrink:0;">
           <summary style="cursor:pointer;font-weight:600;outline:none;">
@@ -1210,6 +1224,15 @@
   let _currentTreeSource = 'local';
   window._bdbvCurrentSource = 'local';
   let _localTreeData = null;
+  // Switching rooting must refetch: _localTreeData caches whichever rooting
+  // was loaded first, and reusing it would show one rooting's tree beside the
+  // other's convergence counts.
+  window._bdbvClearLocalTree = () => {
+    _localTreeData = null;
+    _localTreeDeployed = null;
+    _localTreeTipCount = null;
+    _localTreeMarkedCount = -1;
+  };
   // When the served copy of local_tree.nwk was last written. On GitHub Pages
   // this is the CDN's Last-Modified, which is when the file reached
   // production - later than the commit, because Pages builds after the merge.
@@ -1376,11 +1399,13 @@
     if (source === 'local') {
       if (!_localTreeData) {
         try {
-          console.log('[switchTreeSource] Loading local_tree.nwk...');
-          // Revalidate rather than take a cached copy: local_tree.nwk is
+          const treeFile = window.treeFileForRooting
+            ? window.treeFileForRooting() : 'local_tree.nwk';
+          console.log(`[switchTreeSource] Loading ${treeFile}...`);
+          // Revalidate rather than take a cached copy: the local tree is
           // rewritten every time the analysis pipeline runs, and a stale one
           // silently shows an out-of-date tree alongside current mutation data.
-          const resp = await fetch('local_tree.nwk', { cache: 'no-cache' });
+          const resp = await fetch(treeFile, { cache: 'no-cache' });
           if (resp.ok) {
             const newick = (await resp.text()).trim();
             _localTreeData = newick;
@@ -1751,7 +1776,7 @@ let filteredEvents = [];
 
       <p style="margin:0 0 5px;"><strong>Data.</strong> ${m.n_sequences} of
       ${m.n_sequences_before_filter} genomes, ${m.n_columns} alignment columns,
-      ${m.variable_sites} variable sites. Tree rooted on ${m.outgroup}. IUPAC ambiguity codes
+      ${m.variable_sites} variable sites. ${rootingSentence(m)} IUPAC ambiguity codes
       are treated as missing, not as alleles. Genomes with more than ${pct(m.max_seq_missing)}
       missing data and columns with more than ${pct(m.max_site_missing)} are dropped;
       ${masked ? `site ${masked} is masked, as in the Nextstrain BDBV build; ` : ''}rate
@@ -1846,16 +1871,122 @@ let filteredEvents = [];
     }).join('');
   };
 
+/* ---------------------------------------------------------------------------
+ * Rooting.
+ *
+ * The tree and the convergence analysis must always come from the same
+ * rooting. recurrence_internal, and the direction of every substitution, are
+ * read off a rooted tree by walking parent to child: under the two rootings
+ * the published figures differ (116 vs 128 recurrent sites, 25 vs 33 on
+ * internal branches). Showing one rooting's tree beside the other's counts
+ * would have the panel asserting origins that were never computed on the tree
+ * next to it, so the pair is swapped together and never separately.
+ *
+ * The selector stays hidden unless BOTH residual-rooting artefacts are served. A
+ * pipeline run with ROOTING=outgroup does not write them, and the option then
+ * disappears instead of failing when clicked.
+ * ------------------------------------------------------------------------ */
+// Residual minimisation is the primary pair (local_tree.nwk,
+// homoplasy_data.json); the outgroup rooting is the alternative. Outgroup
+// rooting is not stable for this outbreak, so it is no longer what a reader
+// sees first.
+window._bdbvRooting = 'residual';
+
+function treeFileForRooting() {
+  return window._bdbvRooting === 'outgroup'
+    ? 'local_tree.outgroup.nwk' : 'local_tree.nwk';
+}
+function homoplasyFileForRooting() {
+  return window._bdbvRooting === 'outgroup'
+    ? 'homoplasy_data.outgroup.json' : 'homoplasy_data.json';
+}
+
+/**
+ * Which rooting the data on screen actually came from.
+ *
+ * Taken from the loaded file's own metadata, not from the selector. A run
+ * that publishes a single rooting still writes the primary pair, so keying
+ * the caption off the selected option would let the page describe a tree it
+ * is not showing. Falls back to the selection only before the data arrives.
+ */
+function rootingInUse() {
+  const m = (typeof homoplasyMetadata === 'object') ? homoplasyMetadata : null;
+  if (m && Object.keys(m).length) return m.rooting || 'outgroup';
+  return window._bdbvRooting;   // nothing loaded yet
+}
+
+/** The methods-note sentence describing how the tree was rooted. */
+function rootingSentence(m) {
+  const rooting = m && Object.keys(m).length
+    ? (m.rooting || 'outgroup') : window._bdbvRooting;
+  if (rooting === 'residual') {
+    return 'Tree rooted to minimise residuals from the root-to-tip '
+         + 'regression line against sample collection date, as in the INRB '
+         + 'analysis, rather than on an outgroup.';
+  }
+  return `Tree rooted on ${m.outgroup}.`;
+}
+
+function updateRootingCaption() {
+  const el = document.getElementById('tree-rooting-caption');
+  if (!el) return;
+  el.textContent = rootingInUse() === 'residual'
+    ? '2026 outbreak subtree \u00b7 rooted to minimise residuals from the regression line'
+    : '2026 outbreak subtree \u00b7 rooted using 2007 BDBV strain (not shown)';
+}
+
+/**
+ * Reveal the selector only when the pipeline says both rootings were
+ * published. The flag is set by run_asr_analysis.sh with ROOTING=both.
+ *
+ * Read from metadata rather than probed for with HEAD requests: probing costs
+ * two 404s in the console on every page load whenever only one rooting has
+ * been published, which is the default, and the pipeline already knows the
+ * answer.
+ */
+function revealRootingSelector() {
+  const sel = document.getElementById('rooting-select');
+  if (!sel) return;
+  const both = homoplasyMetadata && homoplasyMetadata.alternative_rooting;
+  sel.style.display = both ? '' : 'none';
+  // Keep the selection honest about what is loaded. With one rooting
+  // published the control is hidden, and the state must still match the file
+  // so the caption and the methods note describe the right tree.
+  if (!both && homoplasyMetadata && Object.keys(homoplasyMetadata).length) {
+    window._bdbvRooting = homoplasyMetadata.rooting || 'outgroup';
+  }
+  sel.value = window._bdbvRooting;
+  updateRootingCaption();
+}
+
+window.treeFileForRooting      = treeFileForRooting;
+window.homoplasyFileForRooting = homoplasyFileForRooting;
+window.updateRootingCaption    = updateRootingCaption;
+
+window.switchRooting = async function(value) {
+  if (value !== 'outgroup' && value !== 'residual') return;
+  window._bdbvRooting = value;
+  const sel = document.getElementById('rooting-select');
+  if (sel) sel.value = value;
+  // The alternative rooting exists only for the local tree.
+  if (window._bdbvClearLocalTree) window._bdbvClearLocalTree();
+  updateRootingCaption();
+  if (window.switchTreeSource) await window.switchTreeSource('local');
+  await loadHomoplasyData();
+};
+
 async function loadHomoplasyData() {
   try {
     // Revalidate: rewritten by the analysis pipeline on every run.
-    const response = await fetch('homoplasy_data.json', { cache: 'no-cache' });
+    const homFile = homoplasyFileForRooting();
+    const response = await fetch(homFile, { cache: 'no-cache' });
     if (!response.ok) {
-      throw new Error(`homoplasy_data.json: HTTP ${response.status}`);
+      throw new Error(`${homFile}: HTTP ${response.status}`);
     }
     const data = await response.json();
     const events = data.events || data;
     homoplasyMetadata = data.metadata || {};
+    revealRootingSelector();
     renderExclusions();
     renderHomoplasyMethod();
     // The tree usually renders before this file parses, so the caption was
@@ -2187,6 +2318,7 @@ function showHomoplasyDetailsWithChart(eventId) {
 // Load data when page loads
 document.addEventListener('DOMContentLoaded', function() {
   loadHomoplasyData();
+  updateRootingCaption();
 
   // Initialize Chart.js if available
   if (typeof Chart === 'undefined') {

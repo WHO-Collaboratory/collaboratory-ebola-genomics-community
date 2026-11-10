@@ -230,12 +230,26 @@ jobs:
         # next rebuild. This runs daily so that gap is a day at most.
         run: |
           python3 prune_revoked.py --removed-table revoked_table.md
-          if git diff --quiet -- local_tree.nwk homoplasy_data.json; then
+          # The dashboard may also publish a second rooting. Those artefacts
+          # carry the same genomes and the same Restricted Use obligation, so
+          # a withdrawal has to reach them as well - otherwise a revoked
+          # genome stays on screen for anyone who switches rooting. Guarded on
+          # the files existing, since a run with ROOTING=outgroup omits them.
+          if [ -f local_tree.outgroup.nwk ] && [ -f homoplasy_data.outgroup.json ]; then
+            echo "Pruning the alternative-rooting artefacts as well."
+            python3 prune_revoked.py \
+              --tree local_tree.outgroup.nwk \
+              --data homoplasy_data.outgroup.json
+          fi
+          if git diff --quiet -- local_tree.nwk homoplasy_data.json \
+                                 local_tree.outgroup.nwk homoplasy_data.outgroup.json; then
             echo "changed=no" >> "$GITHUB_OUTPUT"
             echo "No revoked genomes in the published artefacts."
           else
             echo "changed=yes" >> "$GITHUB_OUTPUT"
-            git --no-pager diff --stat -- local_tree.nwk homoplasy_data.json
+            git --no-pager diff --stat -- local_tree.nwk homoplasy_data.json \
+                                          local_tree.outgroup.nwk \
+                                          homoplasy_data.outgroup.json
             # Carried into the pull request body so the notification names
             # what was withdrawn, rather than only that something was.
             {
@@ -285,6 +299,8 @@ jobs:
             **These are Restricted Use data that a submitter has asked to
             withdraw**, so this is worth merging promptly rather than leaving
             for the next scheduled rebuild.
+          # Globs: `git add` fails on a pathspec matching nothing, and the
+          # .outgroup. pair is absent until a rebuild publishes it.
           add-paths: |
-            local_tree.nwk
-            homoplasy_data.json
+            local_tree*.nwk
+            homoplasy_data*.json
