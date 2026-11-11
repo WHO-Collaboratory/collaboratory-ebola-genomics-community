@@ -358,6 +358,21 @@
 
         <!-- Compact filters -->
         <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;flex-shrink:0;">
+          <!-- ADAR filter, first because it is the most consequential and
+               excluding by default. 73% of the recurrent sites in this
+               dataset are T>C or A>G - the direction of A-to-I editing read
+               on either strand - and they sit a median of 61 nt apart against
+               256 nt for every other substitution, which is the processive
+               signature of the enzyme rather than of convergence. The masking
+               step collapses runs of 3 or more; pairs and isolated edits
+               survive it and are then counted as independent origins. -->
+          <select id="homoplasy-adar-filter" onchange="filterHomoplasyEvents()"
+                  title="T>C and A>G are the direction of ADAR A-to-I editing. Most recurrence at these sites is editing, not convergence."
+                  style="padding:3px 4px;border:1px solid #ccc;border-radius:3px;font-size:0.7rem;color:#222;background:white;">
+            <option value="exclude">Excluding ADAR-consistent (T&gt;C, A&gt;G)</option>
+            <option value="only">ADAR-consistent only</option>
+            <option value="">All substitution types</option>
+          </select>
           <select id="homoplasy-evidence-filter" onchange="filterHomoplasyEvents()" style="padding:3px 4px;border:1px solid #ccc;border-radius:3px;font-size:0.7rem;color:#222;background:white;">
             <option value="internal">Independent origins (2+ descendants)</option>
             <option value="">Include single-sequence events</option>
@@ -2083,17 +2098,7 @@ async function loadHomoplasyData() {
     }));
 
     filteredEvents = [...allHomoplasyEvents];
-
-    // Update the count in header
-    const countElement = document.getElementById('homoplasy-count');
-    if (countElement) {
-      const strong = allHomoplasyEvents.filter(e => e.evidence === 'internal').length;
-      const n = homoplasyMetadata.n_sequences;
-      countElement.textContent =
-        `${strong} with independent origins · ${allHomoplasyEvents.length} recurrent sites`
-        + (n ? ` · ${n} genomes` : '');
-      countElement.title = homoplasyMetadata.method || '';
-    }
+    filterHomoplasyEvents();   // applies the default ADAR exclusion
 
     // Set default sort to "carriers" and sort
     document.getElementById('homoplasy-sort').value = 'carriers';
@@ -2105,7 +2110,49 @@ async function loadHomoplasyData() {
   }
 }
 
+/**
+ * Is this substitution in the direction ADAR editing produces?
+ *
+ * A-to-I editing reads as A>G on one strand and T>C on the other. This is a
+ * statement about direction only: an individual T>C can be an ordinary
+ * transition, which is why these events are filtered out by default rather
+ * than deleted, and why the label says "consistent with" rather than "is".
+ * What justifies the default is the aggregate - 73% of recurrent sites here,
+ * 82% of those with independent origins, clustered at a median 61 nt where
+ * everything else sits 256 nt apart.
+ */
+function updateHomoplasyCount() {
+  const el = document.getElementById('homoplasy-count');
+  if (!el) return;
+  const adarEl = document.getElementById('homoplasy-adar-filter');
+  const adarFilter = adarEl ? adarEl.value : 'exclude';
+  const shown = filteredEvents.length ? filteredEvents : [];
+  const strong = shown.filter(e => e.evidence === 'internal').length;
+  const n = homoplasyMetadata.n_sequences;
+  const hidden = allHomoplasyEvents.filter(isAdarConsistent).length;
+
+  // Say what is on screen. Reporting the whole file while the default view
+  // hides 73% of it would overstate the evidence about fourfold.
+  let text = `${strong} with independent origins · ${shown.length} recurrent sites`
+    + (n ? ` · ${n} genomes` : '');
+  if (adarFilter === 'exclude' && hidden) {
+    text += ` · ${hidden} ADAR-consistent hidden`;
+  } else if (adarFilter === 'only') {
+    text += ' · ADAR-consistent only';
+  }
+  el.textContent = text;
+  el.title = homoplasyMetadata.method || '';
+}
+
+function isAdarConsistent(event) {
+  const from = (event.ref_base || '').toUpperCase();
+  const to = (event.alt_base || '').toUpperCase();
+  return (from === 'T' && to === 'C') || (from === 'A' && to === 'G');
+}
+
 function filterHomoplasyEvents() {
+  const adarEl = document.getElementById('homoplasy-adar-filter');
+  const adarFilter = adarEl ? adarEl.value : 'exclude';
   const evidenceEl = document.getElementById('homoplasy-evidence-filter');
   const evidenceFilter = evidenceEl ? evidenceEl.value : '';
   const geneFilter = document.getElementById('homoplasy-gene-filter').value;
@@ -2113,6 +2160,9 @@ function filterHomoplasyEvents() {
   const searchTerm = document.getElementById('homoplasy-search').value.toLowerCase();
 
   filteredEvents = allHomoplasyEvents.filter(event => {
+    const adar = isAdarConsistent(event);
+    const adarMatch = adarFilter === '' ? true
+                    : adarFilter === 'only' ? adar : !adar;
     const evidenceMatch = !evidenceFilter || event.evidence === evidenceFilter;
     const geneMatch = !geneFilter || event.gene === geneFilter;
     const typeMatch = !typeFilter || event.type === typeFilter || (typeFilter === 'non-synonymous' && event.type === 'non-synonymous');
@@ -2120,7 +2170,7 @@ function filterHomoplasyEvents() {
       event.position.toString().includes(searchTerm) ||
       (event.gene && event.gene.toLowerCase().includes(searchTerm));
 
-    return evidenceMatch && geneMatch && typeMatch && searchMatch;
+    return adarMatch && evidenceMatch && geneMatch && typeMatch && searchMatch;
   });
 
   sortHomoplasyEvents();
@@ -2141,6 +2191,7 @@ function sortHomoplasyEvents() {
 }
 
 function displayHomoplasyEvents() {
+  updateHomoplasyCount();
   const container = document.getElementById('homoplasy-list');
 
   if (filteredEvents.length === 0) {
@@ -2156,6 +2207,9 @@ function displayHomoplasyEvents() {
       <div style="font-weight:700;color:#0066cc;font-size:0.9rem;">
         Position ${event.position} · ${event.ref_base}→${event.alt_base}
         <span style="font-size:0.7rem;background:#0066cc;color:white;padding:2px 6px;border-radius:2px;margin-left:6px;font-weight:600;">n=${event.num_sequences || event.num_carriers}</span>
+        ${isAdarConsistent(event)
+          ? `<span title="T>C and A>G are the direction of ADAR A-to-I editing. Recurrence at these sites is more likely editing than convergence." style="font-size:0.65rem;background:#8e44ad;color:white;padding:2px 5px;border-radius:2px;margin-left:4px;font-weight:600;">ADAR-consistent</span>`
+          : ''}
         ${event.evidence === 'internal'
           ? `<span title="Same substitution on ${event.recurrence_internal} internal branches; each origin left 2+ descendants" style="font-size:0.65rem;background:#1a7f37;color:white;padding:2px 5px;border-radius:2px;margin-left:4px;font-weight:600;">${event.recurrence_internal} origins</span>`
           : `<span title="Recurrence rests on changes private to single sequences; not distinguishable from sequencing error" style="font-size:0.65rem;background:#8a6d3b;color:white;padding:2px 5px;border-radius:2px;margin-left:4px;font-weight:600;">unsupported</span>`}
