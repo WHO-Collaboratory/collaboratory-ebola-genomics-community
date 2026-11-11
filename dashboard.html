@@ -2353,16 +2353,31 @@ function updateMutationFrequencyChart(event) {
         pointBackgroundColor: '#0066cc',
         pointBorderColor: '#fff',
         pointBorderWidth: 2,
-        pointRadius: 5,
-        pointHoverRadius: 7,
+        // No marker per point. There is one point per distinct collection
+        // date - typically 179 of them across a plot about 400px wide, so
+        // roughly 2px apart - and a 5px marker ringed in 2px of white is
+        // 14px across. Each one covered six of its neighbours and the white
+        // rings painted over the line, which is what read as white speckle
+        // rather than a series. The line carries the shape; a marker appears
+        // under the cursor, where it identifies a single date.
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHitRadius: 12,
         tension: 0.3
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: true, labels: { font: { size: 11 }, color: '#222' } }
+        legend: { display: true, labels: { font: { size: 11 }, color: '#222' } },
+        tooltip: {
+          callbacks: {
+            title: items => items[0]?.label || '',
+            label: item => `Cumulative frequency ${item.parsed.y}%`
+          }
+        }
       },
       scales: {
         y: {
