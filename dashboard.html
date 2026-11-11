@@ -2286,6 +2286,12 @@ function updateMutationFrequencyChart(event) {
   if (typeof allSequences !== 'undefined' && allSequences.length > 0) {
     allSequences.forEach(seqData => {
       if (!seqData.date || seqData.date === '—') return;
+      // Pathoplexus also carries partial dates ("2026-05") and ranges
+      // ("2026-01-01/2026-08-28", a span of eight months). Plotted as if they
+      // were points in time they sort ahead of every real date and stretch
+      // the axis, and they are not observations of when anything happened.
+      // generate_local_tree.py drops them from the tree for the same reason.
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(seqData.date)) return;
 
       const date = seqData.date;
       if (!frequencyByDate[date]) {
@@ -2324,7 +2330,14 @@ function updateMutationFrequencyChart(event) {
     note.textContent = 'Collection date data not available';
     return;
   }
-  note.textContent = `Frequency over time · ${event.num_carriers} total sequences`;
+  // `num_carriers` has never existed on these events - the field is
+  // `num_sequences`, and it counts carriers, not the denominator. The
+  // denominator is what the chart just summed, so take it from there and say
+  // which number is which rather than writing "total sequences" over either.
+  const carriers = event.num_sequences ?? (event.all_carriers || []).length;
+  note.textContent = `Frequency over time · ${carriers} carriers among `
+    + `${cumulativeTotal.toLocaleString()} sequences with a day-precise `
+    + `collection date`;
 
   mutationFreqChart = new Chart(ctx, {
     type: 'line',
@@ -2334,7 +2347,7 @@ function updateMutationFrequencyChart(event) {
         label: 'Cumulative frequency (%)',
         data: frequencies,
         borderColor: '#0066cc',
-        backgroundColor: 'rgba(0, 102, 204, 0.1)',
+        backgroundColor: 'rgba(0, 102, 204, 0.18)',
         borderWidth: 2.5,
         fill: true,
         pointBackgroundColor: '#0066cc',
@@ -2353,8 +2366,15 @@ function updateMutationFrequencyChart(event) {
       },
       scales: {
         y: {
+          // Always from zero, so no baseline distortion, but not pinned to
+          // 100: most of these mutations never exceed a few per cent, and on
+          // a 0-100 axis the whole series is squeezed into the bottom few
+          // pixels against the frame, which is what made the line look white
+          // and flat. The axis ticks state the range, so a rescaled chart
+          // still says plainly how common the mutation is.
           beginAtZero: true,
-          max: 100,
+          suggestedMax: Math.min(100, Math.max(10,
+            Math.ceil(Math.max(0, ...frequencies.map(Number)) * 1.25))),
           ticks: { font: { size: 10 }, color: '#666', callback: v => v + '%' },
           title: { display: true, text: 'Frequency (%)' }
         },
