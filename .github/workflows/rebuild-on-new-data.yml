@@ -89,6 +89,23 @@ jobs:
           IQTREE_BIN: iqtree3
         run: ./run_pathoplexus_pipeline.sh
 
+      - name: Read what was actually downloaded
+        id: downloaded
+        if: steps.check.outputs.run == 'yes'
+        run: |
+          # The check step reads the aggregated count before the download, so
+          # a release that lands in between is analysed but not recorded, and
+          # every later run then sees a mismatch and rebuilds identical data.
+          # Pin the version to what the download returned instead.
+          N=$(python3 -c "import json; print(json.load(open('download_counts.json'))['downloaded'])")
+          echo "count=$N" >> "$GITHUB_OUTPUT"
+          CHECKED='${{ steps.check.outputs.current }}'
+          echo "Downloaded $N genomes; the check step saw $CHECKED."
+          if [ "$N" != "$CHECKED" ]; then
+            echo "::notice::Pathoplexus released data mid-run: checked" \
+                 "$CHECKED, downloaded $N. The analysis covers $N."
+          fi
+
       - name: Cross-check the alignment against Pathoplexus
         if: steps.check.outputs.run == 'yes'
         run: |
@@ -225,7 +242,13 @@ jobs:
           old_tips = published("local_tree.nwk").count("[&accession=")
 
           rows = [
-              ("Genomes downloaded", "n_sequences_before_filter",
+              # NOT the download count: this is what reached the alignment,
+              # after raccoon's sequence QC removed failures and after the
+              # reference and contextual genome were added. Reporting it as
+              # "downloaded" hid a release of new genomes whose arrival was
+              # offset by more QC removals, leaving the total unchanged.
+              ("In the alignment, after sequence QC",
+               "n_sequences_before_filter",
                old.get("n_sequences_before_filter"),
                new.get("n_sequences_before_filter")),
               ("Analysed after QC", "n_sequences",
@@ -269,6 +292,22 @@ jobs:
                     "biological.")
               print()
 
+          # The download count is stated in the body above, which reads it
+          # from the same file. Say something here only when the pre-download
+          # check disagreed with it, because then the recorded version and
+          # the trigger that produced this run were computed from different
+          # numbers, and that is worth a reviewer's attention.
+          counts = json.load(open("download_counts.json"))
+          dl = counts["downloaded"]
+          checked = counts.get("aggregated_before_download")
+          if checked is not None and checked != dl:
+              print("> [!NOTE]")
+              print(f"> **Data landed mid-run.** The aggregated endpoint "
+                    f"reported {checked} genomes when the run started and "
+                    f"{dl} were downloaded moments later. The analysis covers "
+                    f"all {dl}; the recorded version is {dl}, so the next "
+                    "scheduled run will not rebuild this same data.")
+              print()
           print("| Figure | Field | Published | This run | Change |")
           print("|---|---|---:|---:|---:|")
           for label, field, o, n in rows:
@@ -291,7 +330,9 @@ jobs:
           import json
           p = ".github/data-versions.json"
           s = json.load(open(p))
-          s["analysed_sequence_count"] = "${{ steps.check.outputs.current }}"
+          # What was downloaded and analysed, not what the pre-download
+          # check saw: see the "Read what was actually downloaded" step.
+          s["analysed_sequence_count"] = "${{ steps.downloaded.outputs.count }}"
           json.dump(s, open(p, "w"), indent=2)
           open(p, "a").write("\n")
           PY
@@ -311,14 +352,14 @@ jobs:
           branch: auto/rebuild-analysis
           delete-branch: true
           commit-message: |
-            Rebuild analysis on ${{ steps.check.outputs.current }} Pathoplexus genomes
+            Rebuild analysis on ${{ steps.downloaded.outputs.count }} Pathoplexus genomes
 
             Produced by the rebuild-on-new-data workflow. Review the figures in
             homoplasy_data.json before merging: a clean run is not the same as
             a correct one.
-          title: "Rebuild analysis — ${{ steps.check.outputs.current }} genomes from Pathoplexus"
+          title: "Rebuild analysis — ${{ steps.downloaded.outputs.count }} genomes from Pathoplexus"
           body: |
-            Pathoplexus now holds **${{ steps.check.outputs.current }}** genomes for
+            Pathoplexus holds **${{ steps.downloaded.outputs.count }}** genomes for
             `Bdbv-2026`, so the analysis was rebuilt. On merge these figures
             become the published dashboard:
 

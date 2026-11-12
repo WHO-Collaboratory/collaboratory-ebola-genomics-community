@@ -1400,7 +1400,7 @@
     let html = `${_localTreeTipCount} outbreak genomes · locally inferred `
       + 'tree (IQ-Tree'
       + (homoplasyMetadata && homoplasyMetadata.n_sequences_before_filter
-          ? `, ${homoplasyMetadata.n_sequences_before_filter} submitted, `
+          ? `, ${homoplasyMetadata.n_sequences_before_filter} in the alignment, `
             + `${homoplasyMetadata.n_sequences} passing QC`
           : '')
       + ') · visualised with <a href="https://github.com/artic-network/peartree"'

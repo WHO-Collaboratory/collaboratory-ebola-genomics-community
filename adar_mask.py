@@ -353,7 +353,11 @@ def main():
         "",
         "Most-edited genomes:",
     ]
-    for name, sites in sorted(to_mask.items(), key=lambda kv: -len(kv[1]))[:15]:
+    # Ties are common - a tract inherited by a clade gives every member of it
+    # the same count - and an unstable order makes every rebuild's diff look
+    # like the masking changed when only the sort did. Break ties by accession.
+    for name, sites in sorted(to_mask.items(),
+                              key=lambda kv: (-len(kv[1]), kv[0]))[:15]:
         gpos = sorted(genomic[s] for s in sites)
         lines.append(f"  {name:18s} {len(sites):4d} masked  "
                      f"({gpos[0]}-{gpos[-1]})")

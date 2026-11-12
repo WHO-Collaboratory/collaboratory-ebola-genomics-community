@@ -110,6 +110,19 @@ elif [ "$SEQ_COUNT" -lt "$EXPECTED" ]; then
 else
     echo "  verified against Pathoplexus: $EXPECTED available"
 fi
+
+# Record what was actually downloaded. Every count further down this pipeline
+# is a filtered subset, so this is the only place the raw figure exists - and
+# the aggregated count read before the download can already be stale by the
+# time the download runs, which is how a release that lands mid-run gets
+# analysed but not recorded.
+SEQ_COUNT="$SEQ_COUNT" EXPECTED="$EXPECTED" python3 - <<'PY_COUNTS'
+import json, os
+expected = os.environ.get("EXPECTED") or ""
+json.dump({"downloaded": int(os.environ["SEQ_COUNT"]),
+           "aggregated_before_download": int(expected) if expected else None},
+          open("download_counts.json", "w"), indent=2)
+PY_COUNTS
 echo ""
 
 # Step 2a: Download contextual sequence (PP_006X68B)

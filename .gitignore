@@ -75,3 +75,7 @@ asr_run_homoplasy.json
 # dashboard.html fetches at runtime (homoplasy_data.json, local_tree.nwk).
 !asr_run_homoplasy_report.txt
 !asr_homoplasy_report.txt
+
+# Raw download count, written by run_pathoplexus_pipeline.sh for the
+# workflow to pin the analysed version; regenerated every run.
+download_counts.json
