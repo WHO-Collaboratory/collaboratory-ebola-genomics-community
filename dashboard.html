@@ -341,7 +341,11 @@
           <summary style="cursor:pointer;font-weight:600;outline:none;">
             <span id="tree-exclusions-summary">Excluded from analysis</span>
           </summary>
-          <div id="tree-exclusions-footnote" style="margin-top:6px;"></div>
+          <!-- The card is a fixed-height flex column, so an open <details>
+               listing several hundred accessions overflowed it and the tail
+               of the last group was unreachable. Give the list its own
+               scroll instead of letting it push past the card. -->
+          <div id="tree-exclusions-footnote" style="margin-top:6px;max-height:200px;overflow-y:auto;overscroll-behavior:contain;"></div>
         </details>
     </div>
 
