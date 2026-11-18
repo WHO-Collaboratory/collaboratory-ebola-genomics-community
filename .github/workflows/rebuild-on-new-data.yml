@@ -106,6 +106,19 @@ jobs:
                  "$CHECKED, downloaded $N. The analysis covers $N."
           fi
 
+      - name: Refresh the INSP confirmed-case counts
+        if: steps.check.outputs.run == 'yes'
+        # The dashboard quotes "N of M confirmed cases sequenced"; M comes
+        # from the INSP situation reports. The script keeps what is already
+        # recorded and adds only reports it has not seen, and every report
+        # must reconcile - province subtotals against their health zones, and
+        # the provinces against the published total - or it is rejected
+        # rather than written. A layout change upstream stops the series
+        # rather than corrupting it, so this never fails the rebuild: a stale
+        # denominator is stated on the page, a wrong one would not be.
+        continue-on-error: true
+        run: python3 fetch_insp_cases.py
+
       - name: Cross-check the alignment against Pathoplexus
         if: steps.check.outputs.run == 'yes'
         run: |
@@ -189,7 +202,7 @@ jobs:
           # across, so the branch contains the analysis and nothing else.
           OUT="$RUNNER_TEMP/outputs"
           mkdir -p "$OUT"
-          for f in homoplasy_data.json local_tree.nwk \
+          for f in homoplasy_data.json local_tree.nwk insp_case_counts.json \
                    homoplasy_data.outgroup.json local_tree.outgroup.nwk \
                    asr_run_homoplasy_report.txt asr_run_adar_report.txt \
                    asr_run_homoplasy_report_outgroup.txt \
@@ -387,6 +400,7 @@ jobs:
             local_tree*.nwk
             asr_run_homoplasy_report*.txt
             asr_run_adar_report.txt
+            insp_case_counts.json
             .github/data-versions.json
 
       - name: Confirm the branch landed

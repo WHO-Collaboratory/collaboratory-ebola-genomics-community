@@ -1,0 +1,209 @@
+{
+ "source": "https://insp.cd/",
+ "series": [
+  {
+   "date": "2026-06-22",
+   "sitrep": 39,
+   "cases": 1094,
+   "deaths": 277
+  },
+  {
+   "date": "2026-06-27",
+   "sitrep": 44,
+   "cases": 1274,
+   "deaths": 360
+  },
+  {
+   "date": "2026-07-11",
+   "sitrep": 58,
+   "cases": 1926,
+   "deaths": 702
+  },
+  {
+   "date": "2026-07-19",
+   "sitrep": 66,
+   "cases": 2423,
+   "deaths": 967
+  },
+  {
+   "date": "2026-07-26",
+   "sitrep": 73,
+   "cases": 3262,
+   "deaths": 1437
+  },
+  {
+   "date": "2026-08-03",
+   "sitrep": 81,
+   "cases": 3874,
+   "deaths": 1751
+  },
+  {
+   "date": "2026-08-05",
+   "sitrep": 83,
+   "cases": 4053,
+   "deaths": 1850
+  },
+  {
+   "date": "2026-08-15",
+   "sitrep": 93,
+   "cases": 4945,
+   "deaths": 2325
+  },
+  {
+   "date": "2026-08-24",
+   "sitrep": 102,
+   "cases": 5656,
+   "deaths": 2715
+  },
+  {
+   "date": "2026-08-30",
+   "sitrep": 108,
+   "cases": 6100,
+   "deaths": 2950
+  },
+  {
+   "date": "2026-09-07",
+   "sitrep": 115,
+   "cases": 6686,
+   "deaths": 3226
+  },
+  {
+   "date": "2026-09-13",
+   "sitrep": 122,
+   "cases": 7258,
+   "deaths": 3510
+  },
+  {
+   "date": "2026-09-21",
+   "sitrep": 130,
+   "cases": 7773,
+   "deaths": 3759
+  },
+  {
+   "date": "2026-09-27",
+   "sitrep": 136,
+   "cases": 8116,
+   "deaths": 3924
+  },
+  {
+   "date": "2026-10-04",
+   "sitrep": 143,
+   "cases": 8603,
+   "deaths": 4148
+  },
+  {
+   "date": "2026-10-10",
+   "sitrep": 149,
+   "cases": 8978,
+   "deaths": 4336
+  },
+  {
+   "date": "2026-10-18",
+   "sitrep": 157,
+   "cases": 9552,
+   "deaths": 4602
+  },
+  {
+   "date": "2026-10-25",
+   "sitrep": 164,
+   "cases": 10060,
+   "deaths": 4887
+  },
+  {
+   "date": "2026-11-01",
+   "sitrep": 171,
+   "cases": 10532,
+   "deaths": 5126
+  },
+  {
+   "date": "2026-11-09",
+   "sitrep": 179,
+   "cases": 11042,
+   "deaths": 5387
+  },
+  {
+   "date": "2026-11-16",
+   "sitrep": 186,
+   "cases": 11504,
+   "deaths": 5630
+  }
+ ],
+ "latest": {
+  "date": "2026-11-16",
+  "sitrep": 186,
+  "cases": 11504,
+  "deaths": 5630,
+  "url": "https://insp.cd/sitrep-n186-mve-bdbv-16-11-2026/",
+  "zones": {
+   "Adja": 11,
+   "Alimbongo": 6,
+   "Ariwara": 8,
+   "Aru": 26,
+   "Aungba": 12,
+   "Bafwasende": 19,
+   "Bambu": 220,
+   "Beni": 905,
+   "Biena": 29,
+   "Boga": 2,
+   "Boma Mangbetu": 51,
+   "Bulu": 2,
+   "Bunia": 2105,
+   "Buta": 1,
+   "Butembo": 356,
+   "Dakwa": 1,
+   "Damas": 41,
+   "Drodro": 16,
+   "Dungu": 1,
+   "Fataki": 87,
+   "Ganga": 5,
+   "Gethy": 11,
+   "Goma": 1,
+   "Gombari": 3,
+   "Isiro": 128,
+   "Kabondo": 29,
+   "Kalunguta": 123,
+   "Kambala": 3,
+   "Katwa": 698,
+   "Kayna": 3,
+   "Kilo": 44,
+   "Komanda": 195,
+   "Kyondo": 50,
+   "Lita": 352,
+   "Logo": 14,
+   "Lolwa": 37,
+   "Lubero": 46,
+   "Lubunga": 1,
+   "Mabalako": 134,
+   "Mahagi": 6,
+   "Makiso- Kisangani": 41,
+   "Mambasa": 160,
+   "Mandima": 639,
+   "Mangala": 460,
+   "Mangobo": 11,
+   "Manguredjipa": 16,
+   "Masereka": 57,
+   "Miti-Murhesa": 3,
+   "Mongbwalu": 740,
+   "Musienene": 169,
+   "Mutwanga": 125,
+   "Nia-Nia": 346,
+   "Nizi": 883,
+   "Nyankunde": 143,
+   "Oicha": 141,
+   "Pawa": 138,
+   "Rimba": 29,
+   "Rungu": 11,
+   "Rwampara": 1235,
+   "Tchomia": 86,
+   "Tshopo": 6,
+   "Viadana": 6,
+   "Vuhovi": 66,
+   "Wamba": 190,
+   "Wanie- Rukula": 1,
+   "Wapinda": 6,
+   "Watsa": 10,
+   "Yakoma": 4
+  }
+ },
+ "fetched": "2026-11-18T13:44:16Z"
+}

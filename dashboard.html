@@ -438,6 +438,7 @@
         <div style="height:180px;position:relative;flex:0 0 180px;">
           <canvas id="genomesChart" style="width:100%;height:100%;"></canvas>
         </div>
+        <div style="font-size:0.75rem;color:#666;margin-top:8px;text-align:center;" id="genomes-note"></div>
       </div>
 
       <!-- Middle: where those genomes came from, same weekly buckets -->
@@ -690,6 +691,28 @@
       cur.setUTCDate(cur.getUTCDate() + 1);
     }
 
+    // The confirmed-case count is reported as a figure, not drawn as a
+    // series. Plotted alongside the genome counts it forced a choice
+    // between a second y-axis, a log scale, and squeezing the two genome
+    // curves into a twelfth of the plot - and the share sequenced is a
+    // number, which a caption states more honestly than a gap between two
+    // lines does.
+    let caseNote = "";
+    if (inspCases) {
+      const pts = inspCases.series;
+      const latest = inspCases.latest || pts[pts.length - 1];
+      const genomes = colData[colData.length - 1] || 0;
+      if (latest && latest.cases) {
+        const pct = 100 * genomes / latest.cases;
+        caseNote = `${genomes.toLocaleString()} of ${latest.cases.toLocaleString()} `
+          + `confirmed cases sequenced (${pct.toFixed(1)}%) \u00b7 cases from `
+          + `<a href="https://insp.cd/" target="_blank" style="color:#009EDB;">INSP</a>`
+          + ` SitRep ${latest.sitrep}, ${latest.date}`;
+      }
+    }
+    const noteEl = document.getElementById("genomes-note");
+    if (noteEl) noteEl.innerHTML = caseNote;
+
     const colNote = col.missing > 0 ? ` (${col.included}/${allSequences.length} dated)` : "";
     const relNote = rel.missing > 0 ? ` (${rel.included}/${allSequences.length} dated)` : "";
 
@@ -933,6 +956,23 @@
    */
   window._bdbvCorrectionsApplied = [];
 
+  // Confirmed cases reported by INSP (Institut National de Sante Publique,
+  // RDC). Plotted on the same linear axis as the genome counts rather than a
+  // second y-axis: both are counts of people, and the distance between them
+  // is the point - it is the share of confirmed cases that has a genome.
+  let inspCases = null;
+
+  async function loadInspCases() {
+    try {
+      const resp = await fetch('insp_case_counts.json', { cache: 'no-cache' });
+      if (!resp.ok) return;                      // not published yet
+      const d = await resp.json();
+      if (d && Array.isArray(d.series) && d.series.length) inspCases = d;
+    } catch (e) {
+      console.warn('[insp] case counts unavailable:', e);
+    }
+  }
+
   async function applyMetadataCorrections(rows) {
     window._bdbvCorrectionsApplied = [];
     let corrections;
@@ -1030,6 +1070,10 @@
       // it was written against, so once Pathoplexus is revised the override
       // stops firing instead of silently overwriting the corrected value.
       await applyMetadataCorrections(data.data || []);
+
+      // Fetched alongside the sequences so the first chart render already has
+      // the denominator; a failure here leaves the genome series untouched.
+      await loadInspCases();
 
       // Build lookup: accession → first-version releasedDate
       const firstReleasedMap = {};
