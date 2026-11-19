@@ -154,19 +154,45 @@ jobs:
         if: steps.check.outputs.run == 'yes'
         run: |
           python3 - <<'PY'
-          import json, subprocess, sys
+          import json, re, subprocess, sys
+
+          from prune_revoked import revoked_accessions
+
+          def published(path):
+              return subprocess.run(["git", "show", f"HEAD:{path}"],
+                                    capture_output=True, text=True,
+                                    check=True).stdout
 
           new = json.load(open("homoplasy_data.json"))["metadata"]
-          old = json.loads(subprocess.run(
-              ["git", "show", "HEAD:homoplasy_data.json"],
-              capture_output=True, text=True, check=True).stdout)["metadata"]
+          old = json.loads(published("homoplasy_data.json"))["metadata"]
+
+          # Which genomes the tree holds, rather than how many. A submitter can
+          # revoke a submission in Pathoplexus - 50 of this outbreak's records
+          # have been - and the count then falls for a legitimate reason. What
+          # must never happen is a genome disappearing that nobody withdrew, so
+          # compare the sets and ask Pathoplexus about whatever is missing.
+          ACCESSION = re.compile(r'accession="([^"]+)"')
+
+          def tips(text):
+              return {a.split(".")[0] for a in ACCESSION.findall(text)}
 
           problems = []
-          # Genome count should not fall: Pathoplexus does not retract data, so
-          # a drop means something upstream of here went wrong.
-          if new["n_sequences"] < old["n_sequences"]:
-              problems.append(
-                  f"analysed genomes fell: {old['n_sequences']} -> {new['n_sequences']}")
+          new_tips = tips(open("local_tree.nwk").read())
+          old_tips = tips(published("local_tree.nwk"))
+          gone = old_tips - new_tips
+          if gone:
+              # Fails the step if Pathoplexus cannot be reached: an unverified
+              # disappearance is exactly what this check exists to catch.
+              revoked = revoked_accessions()
+              withdrawn = sorted(gone & revoked)
+              unexplained = sorted(gone - revoked)
+              if withdrawn:
+                  print(f"withdrawn {len(withdrawn)}: {', '.join(withdrawn)}")
+              if unexplained:
+                  problems.append(
+                      f"{len(unexplained)} genome(s) left the tree without being "
+                      f"revoked: {', '.join(unexplained)}")
+
           # A large swing in the headline figure is not necessarily wrong, but
           # it should never pass unseen.
           o, n = old["events_internal_evidence"], new["events_internal_evidence"]
@@ -178,6 +204,7 @@ jobs:
                   f"{new['n_sequences']} of {new['n_sequences_before_filter']}")
 
           print(f"genomes   {old['n_sequences']} -> {new['n_sequences']}")
+          print(f"tips      {len(old_tips)} -> {len(new_tips)}")
           print(f"recurrent {old['total_events']} -> {new['total_events']}")
           print(f"origins   {o} -> {n}")
           if problems:
