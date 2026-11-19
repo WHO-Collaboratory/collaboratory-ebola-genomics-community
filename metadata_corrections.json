@@ -40,5 +40,43 @@
       ],
       "effect_if_uncorrected": "Stretches the sequencing-volume chart back a full year, compressing the outbreak into the right-hand third of the panel. Excluded from the rooting regression anyway by --min-year 2026."
     }
-  ]
+  ],
+  "admin2_aliases": {
+    "_README": [
+      "Health-zone spellings that denote one place, folded to one name.",
+      "",
+      "geoLocAdmin2 is free text and submitters spell a zone several ways. This",
+      "is not a claim that a submitter's value is wrong, so these are not listed",
+      "under 'corrections' and nothing is reported upstream: the place is the",
+      "same place, and only the published figures would be wrong if the labels",
+      "were left apart. A zone split across spellings is counted as several",
+      "zones in the location chart, coloured separately on the tree, and set",
+      "against the INSP case counts under a name INSP does not use.",
+      "",
+      "Matching ignores case and surrounding space, so MUNGWALU and Mungwalu",
+      "both fold without being listed twice. apply_metadata_corrections.py",
+      "rewrites geoLocAdmin2 after each fetch, before the tree is built, and",
+      "the dashboard reads this same block for its live LAPIS query.",
+      "",
+      "A value that is nearly a listed name but not listed - a new variant - is",
+      "reported and left alone. Nothing is folded on a guess."
+    ],
+    "field": "geoLocAdmin2",
+    "canonical": {
+      "Mongbwalu": [
+        "Mungwalu",
+        "Mungbwalu",
+        "Mongwalu"
+      ]
+    },
+    "evidence": {
+      "Mongbwalu": [
+        "One health zone in Djugu territory, Ituri. INSP spells it Mongbwalu in the situation reports the dashboard already quotes for case counts.",
+        "All spellings come from one submitting group, Pathogen Genomic Lab, and all are recorded in Ituri.",
+        "Counts when this was written: Mongbwalu 95, Mungwalu 52, Mungbwalu 21, MUNGWALU 4, MONGWALU 2, MONGBWALU 1 - 175 genomes under six labels.",
+        "Mungwalu entered on 2026-11-19 with a retrospective release of 52 June-July genomes, which would otherwise have appeared as a new health zone."
+      ]
+    },
+    "noted": "2026-11-19"
+  }
 }

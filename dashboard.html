@@ -795,15 +795,53 @@
   // geoLocAdmin2 is free text. Title-casing merges BUNIA with Bunia; these
   // are the spelling variants it cannot merge. "Kom" is deliberately absent:
   // it is probably Komanda, but 8 genomes should not be reassigned on a guess.
+  //
+  // metadata_corrections.json carries the same folds for the pipeline, so the
+  // tree and these panels cannot disagree about which zone a genome is in.
+  // loadAdmin2Aliases() merges that file in over this table, which stays as
+  // the fallback for a page served without it.
   const ADMIN2_ALIASES = {
     "Niania": "Nia Nia", "Nia": "Nia Nia",
-    "Mungwalu": "Mongbwalu", "Mongwalu": "Mongbwalu",
+    "Mungwalu": "Mongbwalu", "Mungbwalu": "Mongbwalu",
+    "Mongwalu": "Mongbwalu",
     "Nyakunde": "Nyankunde",
     "Not Provided": "Not stated", "Unknown": "Not stated",
     // Two Ugandan records give a cross-border origin rather than a district.
     // Kept as recorded - it is information - but not re-cased into "Drc".
     "Drc": "DRC",
   };
+
+  /** Lower-cased spelling -> canonical zone, from metadata_corrections.json. */
+  let admin2Canonical = null;
+
+  async function loadAdmin2Aliases() {
+    try {
+      const resp = await fetch('metadata_corrections.json', { cache: 'no-cache' });
+      if (!resp.ok) return;
+      const block = (await resp.json()).admin2_aliases || {};
+      const table = {};
+      for (const [canonical, variants] of Object.entries(block.canonical || {})) {
+        for (const spelling of [canonical, ...(variants || [])]) {
+          table[String(spelling).trim().toLowerCase()] = canonical;
+        }
+      }
+      if (Object.keys(table).length) admin2Canonical = table;
+    } catch (e) {
+      console.warn('[zones] alias table unavailable, using the built-in one:', e);
+    }
+  }
+
+  /** The one place a health-zone spelling is resolved, for charts and table. */
+  function canonicalZone(raw) {
+    const v = (raw || "").trim();
+    if (!v) return "";
+    if (admin2Canonical) {
+      const hit = admin2Canonical[v.toLowerCase()];
+      if (hit) return hit;
+    }
+    const t = toTitleCase(v);
+    return ADMIN2_ALIASES[t] || t;
+  }
 
   const DRC_NAME = "Democratic Republic of the Congo";
 
@@ -822,8 +860,7 @@
   function zoneOf(s) {
     const raw = (s.admin2 || "").trim();
     if (!raw) return "Not stated";
-    const t = toTitleCase(raw);
-    return ADMIN2_ALIASES[t] || t;
+    return canonicalZone(raw);
   }
 
   function isoWeekStart(iso) {
@@ -1071,6 +1108,11 @@
       // stops firing instead of silently overwriting the corrected value.
       await applyMetadataCorrections(data.data || []);
 
+      // The health-zone folds, from the same file. Must land before the rows
+      // below are mapped: canonicalZone() decides which zone each genome is
+      // counted under, and the built-in table stands in if this fails.
+      await loadAdmin2Aliases();
+
       // Fetched alongside the sequences so the first chart render already has
       // the denominator; a failure here leaves the genome series untouched.
       await loadInspCases();
@@ -1089,7 +1131,7 @@
         admin2:        s.geoLocAdmin2                           || "",
         location: (() => {
           const a1 = toTitleCase(s.geoLocAdmin1 || '');
-          const a2 = toTitleCase(s.geoLocAdmin2 || '');
+          const a2 = canonicalZone(s.geoLocAdmin2 || '');
           if (s.geoLocCountry === "Democratic Republic of the Congo") {
             return a2 && a1 ? `${a2}, ${a1}` : a2 || a1 || 'ex-DRC';
           }

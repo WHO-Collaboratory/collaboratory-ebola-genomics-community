@@ -34,13 +34,22 @@ An accession that is absent is reported but is not an error: a fetch made
 before the record was released, or a narrower query, legitimately will not
 contain it.
 
+The same file also carries admin2_aliases: health-zone spellings that denote
+one place, folded to one name. Those are not corrections - the submitter's
+value is not wrong, the zone is simply spelled several ways - so they have no
+"published" guard, are reapplied on every run, and are not reported upstream.
+A value that resembles a listed name without being listed is reported and
+left alone.
+
 --strict exits non-zero on anything unresolved, for running this as a
 deliberate audit rather than as a pipeline step.
 """
 
 import argparse
 import json
+import re
 import sys
+import unicodedata
 
 
 def load_corrections(path):
@@ -49,6 +58,62 @@ def load_corrections(path):
 
 
 MARKER = "_metadata_corrections_applied"
+
+
+def load_admin2_aliases(path):
+    """{casefolded spelling: canonical name} from the admin2_aliases block.
+
+    Both the canonical name and each listed variant are keys, so a value that
+    differs only in case - MUNGWALU for Mungwalu, MONGBWALU for Mongbwalu -
+    folds without having to be written out.
+    """
+    with open(path) as fh:
+        block = json.load(fh).get("admin2_aliases") or {}
+    table = {}
+    for canonical, variants in (block.get("canonical") or {}).items():
+        for spelling in [canonical, *variants]:
+            table[spelling.strip().casefold()] = canonical
+    return block.get("field", "geoLocAdmin2"), table
+
+
+def _letters(value):
+    """Accent- and punctuation-free letters, for spotting an unlisted variant."""
+    decomposed = unicodedata.normalize("NFKD", value or "")
+    stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return re.sub(r"[^a-z]", "", stripped.lower())
+
+
+def apply_admin2_aliases(records, field, table, verbose=True):
+    """Returns (folded, suspects).
+
+    `folded` counts each rewrite. `suspects` are values close enough to a
+    canonical name to look like the same zone but not listed, which are left
+    exactly as submitted and reported: folding one on a guess would move
+    genomes between health zones.
+    """
+    canonical_letters = {_letters(c): c for c in set(table.values())}
+    folded, suspects = {}, {}
+    for row in records:
+        raw = row.get(field)
+        if not raw or not isinstance(raw, str):
+            continue
+        canonical = table.get(raw.strip().casefold())
+        if canonical:
+            if canonical != raw:
+                row[field] = canonical
+                folded[(raw, canonical)] = folded.get((raw, canonical), 0) + 1
+            continue
+        near = canonical_letters.get(_letters(raw))
+        if near:
+            suspects[(raw, near)] = suspects.get((raw, near), 0) + 1
+    if verbose:
+        for (raw, canonical), n in sorted(folded.items()):
+            print(f"  folded     {field} {raw!r} -> {canonical!r} ({n})")
+        for (raw, canonical), n in sorted(suspects.items()):
+            print(f"  UNLISTED   {field} {raw!r} ({n}) resembles {canonical!r} "
+                  f"but is not listed - left as submitted; add it to "
+                  f"admin2_aliases if it is the same zone")
+    return folded, suspects
 
 
 def apply_to_records(records, corrections, already, verbose=True):
@@ -121,12 +186,13 @@ def main():
 
     try:
         corrections = load_corrections(args.corrections)
+        admin2_field, admin2_table = load_admin2_aliases(args.corrections)
     except FileNotFoundError:
         if not args.quiet:
             print(f"No corrections file ({args.corrections}); nothing to do.")
         return 0
 
-    if not corrections:
+    if not corrections and not admin2_table:
         if not args.quiet:
             print("No corrections recorded.")
         return 0
@@ -143,7 +209,13 @@ def main():
     applied, superseded, problems, absent = apply_to_records(
         records, corrections, already, verbose=not args.quiet)
 
-    if applied and not args.check:
+    # Spelling folds are idempotent and carry no "published" guard, so they
+    # are reapplied on every run and need no marker: the canonical name is
+    # already canonical the second time round.
+    folded, suspects = apply_admin2_aliases(
+        records, admin2_field, admin2_table, verbose=not args.quiet)
+
+    if (applied or folded) and not args.check:
         # Record what this file has had done to it, so a second run can tell
         # its own earlier edit from a genuine upstream revision.
         payload[MARKER] = sorted(already | {m.split(":")[0] for m in applied})
@@ -153,7 +225,7 @@ def main():
     if superseded and not args.quiet:
         print("  -> upstream has been revised; delete the superseded "
               "entries from the corrections file.")
-    if args.strict and (problems or superseded or absent):
+    if args.strict and (problems or superseded or absent or suspects):
         return 1
     return 0
 
