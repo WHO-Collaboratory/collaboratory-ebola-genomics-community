@@ -1,11 +1,11 @@
 ADAR EDITING CLUSTERS
 ============================================================
 Parameters      : runs of >=3 T>C edits, max 200 nt apart
-Genomes         : 1623
-Genomes affected: 176
-Bases masked    : 879
-Branches with a new or extended run: 38
-Added by the per-genome sweep: 129 base(s) in 94 genome(s)
+Genomes         : 1705
+Genomes affected: 175
+Bases masked    : 921
+Branches with a new or extended run: 37
+Added by the per-genome sweep: 404 base(s) in 101 genome(s)
 
 Runs are detected on the tree, so a run inherited by a clade is one
 event; the first edit of each run is kept and the rest masked to N.
